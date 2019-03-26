@@ -56,14 +56,14 @@ func TestStoreInsertBlock(t *testing.T) {
 		t.Fatalf("cannot ensure validator: %s", err)
 	}
 
-	if err := s.InsertBlock(ctx, 1, []byte("123"), time.Now(), vid); err != nil {
+	if err := s.InsertBlock(ctx, 1, []byte{0, 1, 2}, time.Now(), vid); err != nil {
 		t.Error("cannot inser block")
 	}
 
-	if err := s.InsertBlock(ctx, 1, []byte("123"), time.Now(), vid); err == nil {
+	if err := s.InsertBlock(ctx, 1, []byte{0, 1, 2}, time.Now(), vid); err == nil {
 		t.Error("was able to create a block duplicate")
 	}
-	if err := s.InsertBlock(ctx, 2, []byte("123"), time.Now(), 1491249); err == nil {
+	if err := s.InsertBlock(ctx, 2, []byte{0, 1, 2}, time.Now(), 1491249); err == nil {
 		t.Error("was able to create a block with a non existing proposer")
 	}
 }
@@ -82,7 +82,7 @@ func TestStoreMarkBlock(t *testing.T) {
 		t.Fatalf("cannot ensure validator: %s", err)
 	}
 
-	if err := s.InsertBlock(ctx, 1, []byte("123"), time.Now(), vid); err != nil {
+	if err := s.InsertBlock(ctx, 1, []byte{0, 1, 2}, time.Now(), vid); err != nil {
 		t.Fatalf("cannot inser block")
 	}
 
