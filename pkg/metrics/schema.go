@@ -31,7 +31,7 @@ const schema = `
 
 CREATE TABLE IF NOT EXISTS validators (
 	id SERIAL PRIMARY KEY,
-	public_key TEXT NOT NULL UNIQUE,
+	public_key BYTEA NOT NULL UNIQUE,
 	memo TEXT
 );
 
@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS validators (
 
 CREATE TABLE IF NOT EXISTS blocks (
 	block_height BIGINT NOT NULL PRIMARY KEY,
-	block_hash TEXT NOT NULL,
+	block_hash BYTEA NOT NULL,
 	block_time TIMESTAMPTZ NOT NULL,
 	proposer_id INT NOT NULL REFERENCES validators(id)
 );

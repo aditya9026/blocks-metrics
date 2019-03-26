@@ -19,23 +19,23 @@ func TestStoreEnsureValidator(t *testing.T) {
 
 	s := NewStore(db)
 
-	aID, err := s.EnsureValidator(ctx, []byte("aa"), "")
+	aID, err := s.EnsureValidator(ctx, []byte("aa"))
 	if err != nil {
 		t.Fatalf("cannot create 'a' validator: %s", err)
 	}
 
-	bID, err := s.EnsureValidator(ctx, []byte("bb"), "")
+	bID, err := s.EnsureValidator(ctx, []byte("bb"))
 	if err != nil {
 		t.Fatalf("cannot create 'b' validator: %s", err)
 	}
 
-	if aID2, err := s.EnsureValidator(ctx, []byte("aa"), ""); err != nil {
+	if aID2, err := s.EnsureValidator(ctx, []byte("aa")); err != nil {
 		t.Fatalf("cannot ensure 'a' validator: %s", err)
 	} else if aID != aID2 {
 		t.Fatalf("'a' validator ID missmatch %d != %d", aID, aID2)
 	}
 
-	if bID2, err := s.EnsureValidator(ctx, []byte("bb"), ""); err != nil {
+	if bID2, err := s.EnsureValidator(ctx, []byte("bb")); err != nil {
 		t.Fatalf("cannot ensure 'b' validator: %s", err)
 	} else if bID != bID2 {
 		t.Fatalf("'b' validator ID missmatch %d != %d", bID, bID2)
@@ -50,7 +50,8 @@ func TestStoreInsertBlock(t *testing.T) {
 
 	s := NewStore(db)
 
-	vid, err := s.EnsureValidator(ctx, []byte("pubkey"), "")
+	pubkey := []byte{0x01, 0, 0xbe}
+	vid, err := s.EnsureValidator(ctx, pubkey)
 	if err != nil {
 		t.Fatalf("cannot ensure validator: %s", err)
 	}
@@ -75,7 +76,8 @@ func TestStoreMarkBlock(t *testing.T) {
 
 	s := NewStore(db)
 
-	vid, err := s.EnsureValidator(ctx, []byte("pubkey"), "")
+	pubkey := []byte{0x01, 0, 0xbe}
+	vid, err := s.EnsureValidator(ctx, pubkey)
 	if err != nil {
 		t.Fatalf("cannot ensure validator: %s", err)
 	}

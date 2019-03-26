@@ -18,16 +18,16 @@ type Store struct {
 }
 
 // EnsureValidator ensures that a validator with a given public key is present
-// in the database and has the memo set to given value.
-// This operation may cause a validator inser or update.
-func (s *Store) EnsureValidator(ctx context.Context, publicKey []byte, memo string) (int64, error) {
+// in the database.
+func (s *Store) EnsureValidator(ctx context.Context, publicKey []byte) (int64, error) {
 	var id int64
 	err := s.db.QueryRowContext(ctx, `
-		INSERT INTO validators (public_key, memo)
-		VALUES ($1, $2)
-			ON CONFLICT (public_key) DO UPDATE SET memo = $2
+		INSERT INTO validators (public_key)
+		VALUES ($1)
+			ON CONFLICT (public_key) DO UPDATE
+			SET public_key = $1 -- do nothing but force return
 		RETURNING id
-	`, publicKey, memo).Scan(&id)
+	`, publicKey).Scan(&id)
 	return id, err
 }
 
