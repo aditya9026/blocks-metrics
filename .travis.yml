@@ -1,0 +1,10 @@
+language: go
+
+os:
+- linux
+
+services:
+- postgresql
+
+go:
+- tip

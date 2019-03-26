@@ -31,7 +31,7 @@ const schema = `
 
 CREATE TABLE IF NOT EXISTS validators (
 	id SERIAL PRIMARY KEY,
-	public_key TEXT NOT NULL,
+	public_key TEXT NOT NULL UNIQUE,
 	memo TEXT
 );
 
@@ -46,18 +46,13 @@ CREATE TABLE IF NOT EXISTS blocks (
 
 ---
 
-CREATE TABLE IF NOT EXISTS validated_blocks (
+CREATE TABLE IF NOT EXISTS block_participations (
 	id BIGSERIAL PRIMARY KEY,
+	validated BOOLEAN NOT NULL,
 	block_id BIGINT NOT NULL REFERENCES blocks(block_height),
-	validator_id INT NOT NULL REFERENCES validators(id)
-);
-
----
-
-CREATE TABLE IF NOT EXISTS missed_blocks (
-	id SERIAL PRIMARY KEY,
 	validator_id INT NOT NULL REFERENCES validators(id),
-	block_id BIGINT NOT NULL REFERENCES blocks(block_height)
+
+	UNIQUE (block_id, validator_id)
 );
 
 `
