@@ -67,6 +67,10 @@ func TestStoreInsertBlock(t *testing.T) {
 	if err := s.InsertBlock(ctx, 2, []byte{0, 1, 2}, time.Now(), 1491249); err == nil {
 		t.Error("was able to create a block with a non existing proposer")
 	}
+
+	if err := s.InsertBlock(ctx, 2, []byte{0, 1, 3}, time.Now(), vid); err != nil {
+		t.Error("cannot inser block")
+	}
 }
 
 func TestStoreMarkBlock(t *testing.T) {
