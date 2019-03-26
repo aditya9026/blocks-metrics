@@ -19,23 +19,25 @@ func TestStoreEnsureValidator(t *testing.T) {
 
 	s := NewStore(db)
 
-	aID, err := s.EnsureValidator(ctx, []byte("aa"))
+	pubkeyA := []byte{0x01, 0, 0xbe, 'a'}
+	aID, err := s.EnsureValidator(ctx, pubkeyA)
 	if err != nil {
 		t.Fatalf("cannot create 'a' validator: %s", err)
 	}
 
-	bID, err := s.EnsureValidator(ctx, []byte("bb"))
+	pubkeyB := []byte{0x01, 0, 0xbe, 'b'}
+	bID, err := s.EnsureValidator(ctx, pubkeyB)
 	if err != nil {
 		t.Fatalf("cannot create 'b' validator: %s", err)
 	}
 
-	if aID2, err := s.EnsureValidator(ctx, []byte("aa")); err != nil {
+	if aID2, err := s.EnsureValidator(ctx, pubkeyA); err != nil {
 		t.Fatalf("cannot ensure 'a' validator: %s", err)
 	} else if aID != aID2 {
 		t.Fatalf("'a' validator ID missmatch %d != %d", aID, aID2)
 	}
 
-	if bID2, err := s.EnsureValidator(ctx, []byte("bb")); err != nil {
+	if bID2, err := s.EnsureValidator(ctx, pubkeyB); err != nil {
 		t.Fatalf("cannot ensure 'b' validator: %s", err)
 	} else if bID != bID2 {
 		t.Fatalf("'b' validator ID missmatch %d != %d", bID, bID2)
@@ -50,8 +52,7 @@ func TestStoreInsertBlock(t *testing.T) {
 
 	s := NewStore(db)
 
-	pubkey := []byte{0x01, 0, 0xbe}
-	vid, err := s.EnsureValidator(ctx, pubkey)
+	vid, err := s.EnsureValidator(ctx, []byte{0x01, 0, 0xbe})
 	if err != nil {
 		t.Fatalf("cannot ensure validator: %s", err)
 	}
@@ -76,27 +77,35 @@ func TestStoreMarkBlock(t *testing.T) {
 
 	s := NewStore(db)
 
-	pubkey := []byte{0x01, 0, 0xbe}
-	vid, err := s.EnsureValidator(ctx, pubkey)
+	vid1, err := s.EnsureValidator(ctx, []byte{0x01, 0, 0xbe, 1, 1, 1})
 	if err != nil {
-		t.Fatalf("cannot ensure validator: %s", err)
+		t.Fatalf("cannot ensure validator 1: %s", err)
 	}
 
-	if err := s.InsertBlock(ctx, 1, []byte{0, 1, 2}, time.Now(), vid); err != nil {
-		t.Fatalf("cannot inser block")
+	vid2, err := s.EnsureValidator(ctx, []byte{0x01, 0, 0xbe, 2, 2, 2})
+	if err != nil {
+		t.Fatalf("cannot ensure validator 2: %s", err)
 	}
 
-	if err := s.MarkBlock(ctx, 1, vid, true); err != nil {
+	if err := s.InsertBlock(ctx, 1, []byte{0, 1, 2}, time.Now(), vid1); err != nil {
+		t.Fatalf("cannot inser block for validator 1")
+	}
+
+	if err := s.InsertBlock(ctx, 2, []byte{0, 2, 1}, time.Now(), vid2); err != nil {
+		t.Fatalf("cannot inser block for validator 2")
+	}
+
+	if err := s.MarkBlock(ctx, 1, vid1, true); err != nil {
 		t.Fatalf("cannot mark a block: %s", err)
 	}
-	if err := s.MarkBlock(ctx, 1, vid, true); err != nil {
+	if err := s.MarkBlock(ctx, 1, vid1, true); err != nil {
 		t.Fatalf("cannot re-mark a block: %s", err)
 	}
-	if err := s.MarkBlock(ctx, 1, vid, false); err != nil {
+	if err := s.MarkBlock(ctx, 1, vid1, false); err != nil {
 		t.Fatalf("cannot re-mark a block: %s", err)
 	}
 
-	if err := s.MarkBlock(ctx, 2, vid, true); err == nil {
+	if err := s.MarkBlock(ctx, 4129, vid1, true); err == nil {
 		t.Error("was able to mark a non existing block")
 	}
 	if err := s.MarkBlock(ctx, 1, 29144192, true); err == nil {
