@@ -32,6 +32,7 @@ const schema = `
 CREATE TABLE IF NOT EXISTS validators (
 	id SERIAL PRIMARY KEY,
 	public_key BYTEA NOT NULL UNIQUE,
+	address BYTEA NOT NULL UNIQUE,
 	memo TEXT
 );
 

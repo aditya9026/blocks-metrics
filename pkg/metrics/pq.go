@@ -18,17 +18,28 @@ type Store struct {
 	db *sql.DB
 }
 
-// EnsureValidator ensures that a validator with a given public key is present
-// in the database.
-func (s *Store) EnsureValidator(ctx context.Context, publicKey []byte) (int64, error) {
+// InsertValidator adds a validator information into the database. It returns
+// the newly created validator ID on success.
+// This method returns ErrConflict if the validator cannot be inserted due to
+// conflicting data.
+func (s *Store) InsertValidator(ctx context.Context, publicKey, address []byte) (int64, error) {
 	var id int64
 	err := s.db.QueryRowContext(ctx, `
-		INSERT INTO validators (public_key)
-		VALUES ($1)
-			ON CONFLICT (public_key) DO UPDATE
-			SET public_key = $1 -- do nothing but force return
+		INSERT INTO validators (public_key, address)
+		VALUES ($1, $2)
 		RETURNING id
-	`, publicKey).Scan(&id)
+	`, publicKey, address).Scan(&id)
+	return id, castPgErr(err)
+}
+
+// ValidatorAddressID returns an ID of a validator with given address. It
+// returns ErrNotFound if no such address is present in the database.
+func (s *Store) ValidatorAddressID(ctx context.Context, address []byte) (int64, error) {
+	var id int64
+	err := s.db.QueryRowContext(ctx, `
+		SELECT id FROM validators WHERE address = $1
+		LIMIT 1
+	`, address).Scan(&id)
 	return id, castPgErr(err)
 }
 
