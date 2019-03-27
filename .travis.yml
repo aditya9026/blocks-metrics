@@ -1,0 +1,13 @@
+language: go
+
+os:
+- linux
+
+addons:
+  postgresql: "10"
+
+services:
+- postgresql
+
+go:
+- tip

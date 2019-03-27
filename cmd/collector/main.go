@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/iov-one/block-metrics/pkg/metrics"
-	_ "github.com/lib/pq"
 )
 
 func main() {
