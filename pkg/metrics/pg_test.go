@@ -5,11 +5,51 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 
 	_ "github.com/lib/pq"
 )
+
+func TestLastBlock(t *testing.T) {
+	db, cleanup := ensureDB(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	s := NewStore(db)
+
+	if _, err := s.LatestBlock(ctx); !ErrNotFound.Is(err) {
+		t.Fatalf("want ErrNotFound, got %q", err)
+	}
+
+	vID, err := s.EnsureValidator(ctx, []byte{0x01, 0, 0xbe, 'a'})
+	if err != nil {
+		t.Fatalf("cannot create a validator: %s", err)
+	}
+
+	for i := 5; i < 100; i += 20 {
+		block := &Block{
+			Height: int64(i),
+			Hash:   []byte{0, 1, byte(i)},
+			// Postgres TIMESTAMPTZ precision is microseconds.
+			Time:       time.Now().UTC().Round(time.Microsecond),
+			ProposerID: vID,
+		}
+		if err := s.InsertBlock(ctx, block.Height, block.Hash, block.Time, block.ProposerID); err != nil {
+			t.Fatalf("cannot inser block: %s", err)
+		}
+
+		if got, err := s.LatestBlock(ctx); err != nil {
+			t.Fatalf("cannot get latest block: %s", err)
+		} else if !reflect.DeepEqual(got, block) {
+			t.Logf(" got %#v", got)
+			t.Logf("want %#v", block)
+			t.Fatal("unexpected result")
+		}
+	}
+}
 
 func TestStoreEnsureValidator(t *testing.T) {
 	db, cleanup := ensureDB(t)
@@ -58,14 +98,14 @@ func TestStoreInsertBlock(t *testing.T) {
 	}
 
 	if err := s.InsertBlock(ctx, 1, []byte{0, 1, 2}, time.Now(), vid); err != nil {
-		t.Error("cannot inser block")
+		t.Errorf("cannot inser block: %s", err)
 	}
 
-	if err := s.InsertBlock(ctx, 1, []byte{0, 1, 2}, time.Now(), vid); err == nil {
-		t.Error("was able to create a block duplicate")
+	if err := s.InsertBlock(ctx, 1, []byte{0, 1, 2}, time.Now(), vid); !ErrConflict.Is(err) {
+		t.Errorf("was able to create a block duplicate: %s", err)
 	}
-	if err := s.InsertBlock(ctx, 2, []byte{0, 1, 2}, time.Now(), 1491249); err == nil {
-		t.Error("was able to create a block with a non existing proposer")
+	if err := s.InsertBlock(ctx, 2, []byte{0, 1, 2}, time.Now(), 1491249); !ErrConflict.Is(err) {
+		t.Errorf("was able to create a block with a non existing proposer: %s", err)
 	}
 
 	if err := s.InsertBlock(ctx, 2, []byte{0, 1, 3}, time.Now(), vid); err != nil {
@@ -109,11 +149,11 @@ func TestStoreMarkBlock(t *testing.T) {
 		t.Fatalf("cannot re-mark a block: %s", err)
 	}
 
-	if err := s.MarkBlock(ctx, 4129, vid1, true); err == nil {
-		t.Error("was able to mark a non existing block")
+	if err := s.MarkBlock(ctx, 4129, vid1, true); !ErrConflict.Is(err) {
+		t.Errorf("was able to create mark a non existing block: %q", err)
 	}
-	if err := s.MarkBlock(ctx, 1, 29144192, true); err == nil {
-		t.Error("was able to mark a block for a non existing validator")
+	if err := s.MarkBlock(ctx, 1, 29144192, true); !ErrConflict.Is(err) {
+		t.Errorf("was able to make a block for a non existing validator: %q", err)
 	}
 }
 
