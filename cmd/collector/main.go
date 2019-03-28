@@ -13,7 +13,7 @@ import (
 func main() {
 	conf := configuration{
 		PostgresURI:   env("POSTGRES_URI", "user=postgres dbname=postgres sslmode=disable"),
-		TendermintURL: env("TENDERMINT_URL", "http://localhost:26657"),
+		TendermintURI: env("TENDERMINT_URI", "http://localhost:26657"),
 	}
 
 	if err := run(conf); err != nil {
@@ -31,7 +31,7 @@ func env(name, fallback string) string {
 
 type configuration struct {
 	PostgresURI   string
-	TendermintURL string
+	TendermintURI string
 }
 
 func run(conf configuration) error {
@@ -51,7 +51,7 @@ func run(conf configuration) error {
 	st := metrics.NewStore(db)
 
 	tmc := &metrics.TendermintClient{
-		BaseURL: conf.TendermintURL,
+		BaseURL: conf.TendermintURI,
 	}
 
 	inserted, err := metrics.Sync(ctx, tmc, st)

@@ -83,10 +83,12 @@ func Blocks(ctx context.Context, c *TendermintClient, minHeight int64) ([]*Tende
 		Error  json.RawMessage // Tendermint cannot decide on the type.
 		Result struct {
 			BlockMetas []struct {
+				BlockID struct {
+					Hash hexstring
+				} `json:"block_id"`
 				Header struct {
 					Height          sint64    `json:"height"`
 					Time            time.Time `json:"time"`
-					ValidatorsHash  hexstring `json:"validators_hash"`
 					ProposerAddress hexstring `json:"proposer_address"`
 				}
 			} `json:"block_metas"`
@@ -106,7 +108,7 @@ func Blocks(ctx context.Context, c *TendermintClient, minHeight int64) ([]*Tende
 		blocks = append(blocks, &TendermintBlock{
 			Height:          meta.Header.Height.Int64(),
 			Time:            meta.Header.Time,
-			Hash:            meta.Header.ValidatorsHash,
+			Hash:            meta.BlockID.Hash,
 			ProposerAddress: meta.Header.ProposerAddress,
 		})
 	}
