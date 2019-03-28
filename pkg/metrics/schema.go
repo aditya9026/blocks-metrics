@@ -42,19 +42,10 @@ CREATE TABLE IF NOT EXISTS blocks (
 	block_height BIGINT NOT NULL PRIMARY KEY,
 	block_hash BYTEA NOT NULL,
 	block_time TIMESTAMPTZ NOT NULL,
-	proposer_id INT NOT NULL REFERENCES validators(id)
+	proposer_id INT NOT NULL REFERENCES validators(id),
+	participant_ids INT[] NOT NULL CHECK (array_length(participant_ids, 1) > 0)
 );
 
----
-
-CREATE TABLE IF NOT EXISTS block_participations (
-	id BIGSERIAL PRIMARY KEY,
-	validated BOOLEAN NOT NULL,
-	block_id BIGINT NOT NULL REFERENCES blocks(block_height),
-	validator_id INT NOT NULL REFERENCES validators(id),
-
-	UNIQUE (block_id, validator_id)
-);
 
 `
 

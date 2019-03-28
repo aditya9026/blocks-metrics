@@ -43,24 +43,11 @@ func (s *Store) ValidatorAddressID(ctx context.Context, address []byte) (int64, 
 	return id, castPgErr(err)
 }
 
-func (s *Store) InsertBlock(ctx context.Context, height int64, hash []byte, created time.Time, proposerID int64) error {
+func (s *Store) InsertBlock(ctx context.Context, b Block) error {
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO blocks (block_height, block_hash, block_time, proposer_id)
-		VALUES ($1, $2, $3, $4)
-	`, height, hash, created, proposerID)
-	return castPgErr(err)
-}
-
-// MarkBlock marks a block validated/missed by given validator. If block was
-// marked for that validator already an updated of the old value is made.
-// This method returns ErrConflict if either block or validator with given ID
-// does not exist.
-func (s *Store) MarkBlock(ctx context.Context, blockID, validatorID int64, validated bool) error {
-	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO block_participations (block_id, validator_id, validated)
-		VALUES ($1, $2, $3)
-			ON CONFLICT (block_id, validator_id) DO UPDATE SET validated = $3
-	`, blockID, validatorID, validated)
+		INSERT INTO blocks (block_height, block_hash, block_time, proposer_id, participant_ids)
+		VALUES ($1, $2, $3, $4, $5)
+	`, b.Height, b.Hash, b.Time.UTC(), b.ProposerID, pq.Array(b.ParticipantIDs))
 	return castPgErr(err)
 }
 
@@ -68,12 +55,13 @@ func (s *Store) MarkBlock(ctx context.Context, blockID, validatorID int64, valid
 // returns ErrNotFound if no block exist.
 func (s *Store) LatestBlock(ctx context.Context) (*Block, error) {
 	var b Block
+
 	err := s.db.QueryRowContext(ctx, `
-		SELECT block_height, block_hash, block_time, proposer_id
+		SELECT block_height, block_hash, block_time, proposer_id, participant_ids
 		FROM blocks
 		ORDER BY block_height DESC
 		LIMIT 1
-	`).Scan(&b.Height, &b.Hash, &b.Time, &b.ProposerID)
+	`).Scan(&b.Height, &b.Hash, &b.Time, &b.ProposerID, pq.Array(&b.ParticipantIDs))
 	switch err := castPgErr(err); err {
 	case nil:
 		return &b, nil
@@ -85,10 +73,11 @@ func (s *Store) LatestBlock(ctx context.Context) (*Block, error) {
 }
 
 type Block struct {
-	Height     int64
-	Hash       []byte
-	Time       time.Time
-	ProposerID int64
+	Height         int64
+	Hash           []byte
+	Time           time.Time
+	ProposerID     int64
+	ParticipantIDs []int64
 }
 
 var (

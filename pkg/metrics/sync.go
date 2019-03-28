@@ -41,6 +41,7 @@ func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 
 			return inserted, errors.Wrapf(err, "blocks for %d", syncedHeight+1)
 		}
+		syncedHeight = c.Height
 
 		pid, ok := validatorIDs[string(c.ProposerAddress)]
 		if !ok {
@@ -51,26 +52,30 @@ func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 			validatorIDs[string(c.ProposerAddress)] = pid
 		}
 
-		if err := st.InsertBlock(ctx, c.Height, c.Hash, c.Time.UTC(), pid); err != nil {
-			return inserted, errors.Wrapf(err, "insert block %d", c.Height)
-		}
-		inserted++
-
-		for _, addr := range c.ParticipantAddresses {
-			vid, ok := validatorIDs[string(addr)]
+		participantIDs := make([]int64, len(c.ParticipantAddresses))
+		for i, addr := range c.ParticipantAddresses {
+			pid, ok := validatorIDs[string(addr)]
 			if !ok {
-				vid, err = validatorID(ctx, tmc, st, addr, c.Height)
+				pid, err = validatorID(ctx, tmc, st, addr, c.Height)
 				if err != nil {
 					return inserted, errors.Wrapf(err, "validator address %x", addr)
 				}
-				validatorIDs[string(addr)] = vid
+				validatorIDs[string(addr)] = pid
 			}
-			if err := st.MarkBlock(ctx, c.Height, vid, true); err != nil {
-				return inserted, errors.Wrapf(err, "cannot mark %d block for %d", c.Height, vid)
-			}
+			participantIDs[i] = pid
 		}
 
-		syncedHeight = c.Height
+		block := Block{
+			Height:         c.Height,
+			Hash:           c.Hash,
+			Time:           c.Time.UTC(),
+			ProposerID:     pid,
+			ParticipantIDs: participantIDs,
+		}
+		if err := st.InsertBlock(ctx, block); err != nil {
+			return inserted, errors.Wrapf(err, "insert block %d", c.Height)
+		}
+		inserted++
 	}
 }
 

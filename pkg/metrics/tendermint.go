@@ -4,67 +4,65 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"io/ioutil"
-	"net/http"
+	"sync"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/iov-one/block-metrics/pkg/errors"
 )
 
 type TendermintClient struct {
-	BaseURL string
-	Client  http.Client
+	mu   sync.Mutex
+	conn *websocket.Conn
 }
 
-// Get creates a GET request to the tendermint node and loads the JSON encoded
+// DialTendermint returns a client that is maintains a websocket connection to
+// tendermint API. The websocket is used instead of standard HTTP connection to
+// lower the latency, bypass throttling and to allow subscription requests.
+func DialTendermint(websocketURL string) (*TendermintClient, error) {
+	c, _, err := websocket.DefaultDialer.Dial(websocketURL, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "dial")
+	}
+	return &TendermintClient{conn: c}, nil
+}
+
+func (c *TendermintClient) Close() error {
+	return c.conn.Close()
+}
+
+// Get sends a request to the tendermint node and loads the JSON encoded
 // response content into given destination structure.
 // Requests that were unsuccessful because of throttling are retried before
 // returning ErrThrottled error.
 //
 // Use API as described in https://tendermint.com/rpc/
-func (c *TendermintClient) Get(ctx context.Context, path string, dest interface{}) error {
-	var attempt int
-
-	for {
-		err := c.get(ctx, path, dest)
-		if !ErrThrottled.Is(err) {
-			return err
-		}
-		if attempt > 5 {
-			return errors.Wrapf(err, "failed attempts=%d", attempt)
-		}
-
-		attempt++
-
-		select {
-		case <-time.After(time.Duration(attempt) * 100 * time.Millisecond):
-		case <-ctx.Done():
-			return ctx.Err()
-		}
+func (c *TendermintClient) Get(ctx context.Context, dest interface{}, method string, args ...interface{}) error {
+	params := make([]string, len(args))
+	for i, v := range args {
+		params[i] = fmt.Sprint(v)
 	}
-}
-
-func (c *TendermintClient) get(ctx context.Context, path string, dest interface{}) error {
-	fullURL := c.BaseURL + path
-	resp, err := c.Client.Get(fullURL)
-	if err != nil {
-		return errors.Wrapf(err, "cannot query %q", fullURL)
-	}
-	defer resp.Body.Close()
-
-	switch resp.StatusCode {
-	case http.StatusOK:
-		// All good.
-	case http.StatusTooManyRequests:
-		return ErrThrottled
-	default:
-		b, _ := ioutil.ReadAll(io.LimitReader(resp.Body, 1e6))
-		return errors.Wrapf(ErrFailedResponse, "%d: %s", resp.StatusCode, b)
+	req := struct {
+		Method string   `json:"method"`
+		Params []string `json:"params"`
+	}{
+		Method: method,
+		Params: params,
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&dest); err != nil {
-		return errors.Wrap(err, "cannot decode payload")
+	// Usually because this is a single socket connection a correlation ID
+	// should be used to match messages. In this case this is a sequential
+	// read-write call without concurrent use. It is easier to sequentially
+	// process data. Use lock to ensure no request-response is being mixed.
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if err := c.conn.WriteJSON(req); err != nil {
+		return errors.Wrap(err, "write JSON")
+	}
+
+	if err := c.conn.ReadJSON(dest); err != nil {
+		return errors.Wrap(err, "read JSON")
 	}
 	return nil
 }
@@ -90,8 +88,7 @@ func Validators(ctx context.Context, c *TendermintClient, blockHeight int64) ([]
 			}
 		}
 	}
-	path := fmt.Sprintf("/validators?height=%d", blockHeight)
-	if err := c.Get(ctx, path, &payload); err != nil {
+	if err := c.Get(ctx, &payload, "validators", blockHeight); err != nil {
 		return nil, errors.Wrap(err, "query tendermint")
 	}
 	var validators []*TendermintValidator
@@ -131,16 +128,7 @@ func Commit(ctx context.Context, c *TendermintClient, height int64) (*Tendermint
 		} `json:"result"`
 	}
 
-	// Support getting the lastest commit. This is done by not providing he
-	// height parameter.
-	var path string
-	if height == -1 {
-		path = "/commit"
-	} else {
-		path = fmt.Sprintf("/commit?height=%d", height)
-	}
-
-	if err := c.Get(ctx, path, &payload); err != nil {
+	if err := c.Get(ctx, &payload, "commit", height); err != nil {
 		return nil, errors.Wrap(err, "query tendermint")
 	}
 
