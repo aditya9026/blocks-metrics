@@ -38,7 +38,7 @@ func (c *TendermintClient) Get(ctx context.Context, path string, dest interface{
 		attempt++
 
 		select {
-		case <-time.After(time.Duration(attempt) * time.Second):
+		case <-time.After(time.Duration(attempt) * 100 * time.Millisecond):
 		case <-ctx.Done():
 			return ctx.Err()
 		}
@@ -77,52 +77,6 @@ var (
 	ErrThrottled = errors.New("throttled")
 )
 
-// Blocks returns the next few blocks starting with the one of a given height.
-func Blocks(ctx context.Context, c *TendermintClient, minHeight int64) ([]*TendermintBlock, error) {
-	var payload struct {
-		Error  json.RawMessage // Tendermint cannot decide on the type.
-		Result struct {
-			BlockMetas []struct {
-				BlockID struct {
-					Hash hexstring
-				} `json:"block_id"`
-				Header struct {
-					Height          sint64    `json:"height"`
-					Time            time.Time `json:"time"`
-					ProposerAddress hexstring `json:"proposer_address"`
-				}
-			} `json:"block_metas"`
-		}
-	}
-	path := fmt.Sprintf("/blockchain?minHeight=%d&maxHeight=%d", minHeight, minHeight+20)
-	if err := c.Get(ctx, path, &payload); err != nil {
-		return nil, errors.Wrap(err, "query tendermint")
-	}
-
-	if payload.Error != nil {
-		return nil, errors.Wrapf(ErrFailedResponse, string(payload.Error))
-	}
-
-	var blocks []*TendermintBlock
-	for _, meta := range payload.Result.BlockMetas {
-		blocks = append(blocks, &TendermintBlock{
-			Height:          meta.Header.Height.Int64(),
-			Time:            meta.Header.Time,
-			Hash:            meta.BlockID.Hash,
-			ProposerAddress: meta.Header.ProposerAddress,
-		})
-	}
-
-	return blocks, nil
-}
-
-type TendermintBlock struct {
-	Height          int64
-	Hash            []byte
-	Time            time.Time
-	ProposerAddress []byte
-}
-
 // Validators return all validators as represented on the block at given
 // height.
 func Validators(ctx context.Context, c *TendermintClient, blockHeight int64) ([]*TendermintValidator, error) {
@@ -153,4 +107,68 @@ func Validators(ctx context.Context, c *TendermintClient, blockHeight int64) ([]
 type TendermintValidator struct {
 	Address []byte
 	PubKey  []byte
+}
+
+func Commit(ctx context.Context, c *TendermintClient, height int64) (*TendermintCommit, error) {
+	var payload struct {
+		Error  json.RawMessage `json:"error"` // Tendermint cannot decide on the type.
+		Result struct {
+			SignedHeader struct {
+				Header struct {
+					Height          sint64    `json:"height"`
+					Time            time.Time `json:"time"`
+					ProposerAddress hexstring `json:"proposer_address"`
+				} `json:"header"`
+				Commit struct {
+					BlockID struct {
+						Hash hexstring `json:"hash"`
+					} `json:"block_id"`
+					Precommits []*struct {
+						ValidatorAddress hexstring `json:"validator_address"`
+					} `json:"precommits"`
+				} `json:"commit"`
+			} `json:"signed_header"`
+		} `json:"result"`
+	}
+
+	// Support getting the lastest commit. This is done by not providing he
+	// height parameter.
+	var path string
+	if height == -1 {
+		path = "/commit"
+	} else {
+		path = fmt.Sprintf("/commit?height=%d", height)
+	}
+
+	if err := c.Get(ctx, path, &payload); err != nil {
+		return nil, errors.Wrap(err, "query tendermint")
+	}
+
+	if payload.Error != nil {
+		return nil, errors.Wrapf(ErrFailedResponse, string(payload.Error))
+	}
+
+	commit := TendermintCommit{
+		Height:          payload.Result.SignedHeader.Header.Height.Int64(),
+		Hash:            payload.Result.SignedHeader.Commit.BlockID.Hash,
+		Time:            payload.Result.SignedHeader.Header.Time.UTC(),
+		ProposerAddress: payload.Result.SignedHeader.Header.ProposerAddress,
+	}
+
+	for _, pc := range payload.Result.SignedHeader.Commit.Precommits {
+		if pc == nil {
+			continue
+		}
+		commit.ParticipantAddresses = append(commit.ParticipantAddresses, pc.ValidatorAddress)
+	}
+
+	return &commit, nil
+}
+
+type TendermintCommit struct {
+	Height               int64
+	Hash                 []byte
+	Time                 time.Time
+	ProposerAddress      []byte
+	ParticipantAddresses [][]byte
 }

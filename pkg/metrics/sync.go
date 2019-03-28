@@ -18,7 +18,7 @@ func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 
 	switch block, err := st.LatestBlock(ctx); {
 	case ErrNotFound.Is(err):
-		syncedHeight = -1
+		syncedHeight = 1
 	case err == nil:
 		syncedHeight = block.Height
 	default:
@@ -30,48 +30,47 @@ func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 	validatorIDs := make(map[string]int64)
 
 	for {
-		blocks, err := Blocks(ctx, tmc, syncedHeight+1)
+		c, err := Commit(ctx, tmc, syncedHeight+1)
 		if err != nil {
 
-			// BUG this can happen if no block was created since
-			// the last sync. We ask for blocks with height greater
-			// than the existing one which makes tendermint fail
-			// internally.
+			// BUG this can happen when the commit does not exist.
+			// There is no sane way to distinguish this case from
+			// any other tendermint API error.
+			// Commit(ctx, tmc, -1) can be used to get the latest
+			// commit.
 
 			return inserted, errors.Wrapf(err, "blocks for %d", syncedHeight+1)
 		}
 
-		if len(blocks) == 0 {
-			return inserted, nil
+		pid, ok := validatorIDs[string(c.ProposerAddress)]
+		if !ok {
+			pid, err = validatorID(ctx, tmc, st, c.ProposerAddress, c.Height)
+			if err != nil {
+				return inserted, errors.Wrapf(err, "proposer address %x", c.ProposerAddress)
+			}
+			validatorIDs[string(c.ProposerAddress)] = pid
 		}
 
-		for _, b := range blocks {
-			pid, ok := validatorIDs[string(b.ProposerAddress)]
+		if err := st.InsertBlock(ctx, c.Height, c.Hash, c.Time.UTC(), pid); err != nil {
+			return inserted, errors.Wrapf(err, "insert block %d", c.Height)
+		}
+		inserted++
+
+		for _, addr := range c.ParticipantAddresses {
+			vid, ok := validatorIDs[string(addr)]
 			if !ok {
-				pid, err = validatorID(ctx, tmc, st, b.ProposerAddress, b.Height)
+				vid, err = validatorID(ctx, tmc, st, addr, c.Height)
 				if err != nil {
-					return inserted, errors.Wrapf(err, "proposer address %x", b.ProposerAddress)
+					return inserted, errors.Wrapf(err, "validator address %x", addr)
 				}
-				validatorIDs[string(b.ProposerAddress)] = pid
+				validatorIDs[string(addr)] = vid
 			}
-
-			if err := st.InsertBlock(ctx, b.Height, b.Hash, b.Time.UTC(), pid); err != nil {
-				return inserted, errors.Wrapf(err, "insert block %d", b.Height)
-			}
-			inserted++
-
-			// BUG because blocks are not ordered if this loop is
-			// not finished a corrupted database state is created.
-			// A block with higher value might be inserted skipping
-			// the blocks with lower height. Because next sync will
-			// start from the highest block value, missing blocks
-			// will never be synced.
-
-			// Blocks are not returned in any order.
-			if b.Height > syncedHeight {
-				syncedHeight = b.Height
+			if err := st.MarkBlock(ctx, c.Height, vid, true); err != nil {
+				return inserted, errors.Wrapf(err, "cannot mark %d block for %d", c.Height, vid)
 			}
 		}
+
+		syncedHeight = c.Height
 	}
 }
 
@@ -85,6 +84,10 @@ func validatorID(
 	address []byte,
 	blockHeight int64,
 ) (int64, error) {
+	if len(address) == 0 {
+		return 0, errors.Wrap(ErrNotFound, "empty validator address")
+	}
+
 	switch id, err := st.ValidatorAddressID(ctx, address); {
 	case err == nil:
 		return id, nil
@@ -109,7 +112,7 @@ func validatorID(
 		}
 		return id, nil
 	}
-	return 0, errors.Wrapf(ErrNotFound, "validator not present at height %d", blockHeight)
+	return 0, errors.Wrapf(ErrNotFound, "validator %x not present at height %d", address, blockHeight)
 }
 
 // StreamSync is expected to work similar to Sync but to use websocket and
