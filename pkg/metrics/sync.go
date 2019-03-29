@@ -36,9 +36,6 @@ func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 			// BUG this can happen when the commit does not exist.
 			// There is no sane way to distinguish this case from
 			// any other tendermint API error.
-			// Commit(ctx, tmc, -1) can be used to get the latest
-			// commit.
-
 			return inserted, errors.Wrapf(err, "blocks for %d", syncedHeight+1)
 		}
 		syncedHeight = c.Height
