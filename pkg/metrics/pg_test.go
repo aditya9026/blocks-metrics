@@ -5,13 +5,55 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 
+	"github.com/iov-one/block-metrics/pkg/errors"
 	_ "github.com/lib/pq"
 )
 
-func TestStoreEnsureValidator(t *testing.T) {
+func TestLastBlock(t *testing.T) {
+	db, cleanup := ensureDB(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	s := NewStore(db)
+
+	if _, err := s.LatestBlock(ctx); !ErrNotFound.Is(err) {
+		t.Fatalf("want ErrNotFound, got %q", err)
+	}
+
+	vID, err := s.InsertValidator(ctx, []byte{0x01, 0, 0xbe, 'a'}, []byte{0x02})
+	if err != nil {
+		t.Fatalf("cannot create a validator: %s", err)
+	}
+
+	for i := 5; i < 100; i += 20 {
+		block := Block{
+			Height: int64(i),
+			Hash:   []byte{0, 1, byte(i)},
+			// Postgres TIMESTAMPTZ precision is microseconds.
+			Time:           time.Now().UTC().Round(time.Microsecond),
+			ProposerID:     vID,
+			ParticipantIDs: []int64{vID},
+		}
+		if err := s.InsertBlock(ctx, block); err != nil {
+			t.Fatalf("cannot inser block: %s", err)
+		}
+
+		if got, err := s.LatestBlock(ctx); err != nil {
+			t.Fatalf("cannot get latest block: %s", err)
+		} else if !reflect.DeepEqual(got, &block) {
+			t.Logf(" got %#v", got)
+			t.Logf("want %#v", &block)
+			t.Fatal("unexpected result")
+		}
+	}
+}
+
+func TestStoreInsertValidator(t *testing.T) {
 	db, cleanup := ensureDB(t)
 	defer cleanup()
 
@@ -20,100 +62,114 @@ func TestStoreEnsureValidator(t *testing.T) {
 	s := NewStore(db)
 
 	pubkeyA := []byte{0x01, 0, 0xbe, 'a'}
-	aID, err := s.EnsureValidator(ctx, pubkeyA)
-	if err != nil {
+	addrA := []byte{0x02, 'a'}
+	if _, err := s.InsertValidator(ctx, pubkeyA, addrA); err != nil {
 		t.Fatalf("cannot create 'a' validator: %s", err)
 	}
 
 	pubkeyB := []byte{0x01, 0, 0xbe, 'b'}
-	bID, err := s.EnsureValidator(ctx, pubkeyB)
-	if err != nil {
+	addrB := []byte{0x02, 'b'}
+	if _, err := s.InsertValidator(ctx, pubkeyB, addrB); err != nil {
 		t.Fatalf("cannot create 'b' validator: %s", err)
 	}
 
-	if aID2, err := s.EnsureValidator(ctx, pubkeyA); err != nil {
-		t.Fatalf("cannot ensure 'a' validator: %s", err)
-	} else if aID != aID2 {
-		t.Fatalf("'a' validator ID missmatch %d != %d", aID, aID2)
+	if _, err := s.InsertValidator(ctx, pubkeyA, []byte{0x99}); !ErrConflict.Is(err) {
+		t.Fatalf("was able to create a validator with an existing public key: %q", err)
 	}
-
-	if bID2, err := s.EnsureValidator(ctx, pubkeyB); err != nil {
-		t.Fatalf("cannot ensure 'b' validator: %s", err)
-	} else if bID != bID2 {
-		t.Fatalf("'b' validator ID missmatch %d != %d", bID, bID2)
+	if _, err := s.InsertValidator(ctx, []byte{0x99}, addrA); !ErrConflict.Is(err) {
+		t.Fatalf("was able to create a validator with an existing address: %q", err)
 	}
 }
 
 func TestStoreInsertBlock(t *testing.T) {
-	db, cleanup := ensureDB(t)
-	defer cleanup()
-
-	ctx := context.Background()
-
-	s := NewStore(db)
-
-	vid, err := s.EnsureValidator(ctx, []byte{0x01, 0, 0xbe})
-	if err != nil {
-		t.Fatalf("cannot ensure validator: %s", err)
+	type validator struct {
+		address []byte
+		pubkey  []byte
+	}
+	cases := map[string]struct {
+		validators []validator
+		block      Block
+		wantErr    *errors.Error
+	}{
+		"success": {
+			validators: []validator{
+				{address: []byte{0x01}, pubkey: []byte{0x01, 0, 0x01}},
+				{address: []byte{0x02}, pubkey: []byte{0x02, 0, 0x02}},
+				{address: []byte{0x03}, pubkey: []byte{0x03, 0, 0x03}},
+			},
+			block: Block{
+				Height:         1,
+				Hash:           []byte{0, 1, 2, 3},
+				Time:           time.Now().UTC().Round(time.Millisecond),
+				ProposerID:     2,
+				ParticipantIDs: []int64{2, 3},
+			},
+		},
+		"missing participant ids": {
+			validators: []validator{
+				{address: []byte{0x01}, pubkey: []byte{0x01, 0, 0x01}},
+			},
+			block: Block{
+				Height:         1,
+				Hash:           []byte{0, 1, 2, 3},
+				Time:           time.Now().UTC().Round(time.Millisecond),
+				ProposerID:     1,
+				ParticipantIDs: nil,
+			},
+			wantErr: ErrConflict,
+		},
+		"invalid proposer ID": {
+			validators: []validator{
+				{address: []byte{0x01}, pubkey: []byte{0x01, 0, 0x01}},
+				{address: []byte{0x02}, pubkey: []byte{0x02, 0, 0x02}},
+				{address: []byte{0x03}, pubkey: []byte{0x03, 0, 0x03}},
+			},
+			block: Block{
+				Height:         1,
+				Hash:           []byte{0, 1, 2, 3},
+				Time:           time.Now().UTC().Round(time.Millisecond),
+				ProposerID:     4,
+				ParticipantIDs: []int64{2, 3},
+			},
+			wantErr: ErrConflict,
+		},
+		// This is not implemented.
+		//
+		// "invalid participant ids ID": {
+		// 	validators: []validator{
+		// 		{address: []byte{0x01}, pubkey: []byte{0x01, 0, 0x01}},
+		// 		{address: []byte{0x02}, pubkey: []byte{0x02, 0, 0x02}},
+		// 		{address: []byte{0x03}, pubkey: []byte{0x03, 0, 0x03}},
+		// 	},
+		// 	block: Block{
+		// 		Height:         1,
+		// 		Hash:           []byte{0, 1, 2, 3},
+		// 		Time:           time.Now().UTC().Round(time.Millisecond),
+		// 		ProposerID:     2,
+		// 		ParticipantIDs: []int64{666, 999},
+		// 	},
+		// 	wantErr: ErrConflict,
+		// },
 	}
 
-	if err := s.InsertBlock(ctx, 1, []byte{0, 1, 2}, time.Now(), vid); err != nil {
-		t.Error("cannot inser block")
-	}
+	for testName, tc := range cases {
+		t.Run(testName, func(t *testing.T) {
+			db, cleanup := ensureDB(t)
+			defer cleanup()
 
-	if err := s.InsertBlock(ctx, 1, []byte{0, 1, 2}, time.Now(), vid); err == nil {
-		t.Error("was able to create a block duplicate")
-	}
-	if err := s.InsertBlock(ctx, 2, []byte{0, 1, 2}, time.Now(), 1491249); err == nil {
-		t.Error("was able to create a block with a non existing proposer")
-	}
+			ctx := context.Background()
+			s := NewStore(db)
 
-	if err := s.InsertBlock(ctx, 2, []byte{0, 1, 3}, time.Now(), vid); err != nil {
-		t.Error("cannot inser block")
-	}
-}
+			for _, v := range tc.validators {
+				if _, err := s.InsertValidator(ctx, v.pubkey, v.address); err != nil {
+					t.Fatalf("cannot ensure validator: %s", err)
+				}
+			}
 
-func TestStoreMarkBlock(t *testing.T) {
-	db, cleanup := ensureDB(t)
-	defer cleanup()
-
-	ctx := context.Background()
-
-	s := NewStore(db)
-
-	vid1, err := s.EnsureValidator(ctx, []byte{0x01, 0, 0xbe, 1, 1, 1})
-	if err != nil {
-		t.Fatalf("cannot ensure validator 1: %s", err)
-	}
-
-	vid2, err := s.EnsureValidator(ctx, []byte{0x01, 0, 0xbe, 2, 2, 2})
-	if err != nil {
-		t.Fatalf("cannot ensure validator 2: %s", err)
-	}
-
-	if err := s.InsertBlock(ctx, 1, []byte{0, 1, 2}, time.Now(), vid1); err != nil {
-		t.Fatalf("cannot inser block for validator 1")
-	}
-
-	if err := s.InsertBlock(ctx, 2, []byte{0, 2, 1}, time.Now(), vid2); err != nil {
-		t.Fatalf("cannot inser block for validator 2")
-	}
-
-	if err := s.MarkBlock(ctx, 1, vid1, true); err != nil {
-		t.Fatalf("cannot mark a block: %s", err)
-	}
-	if err := s.MarkBlock(ctx, 1, vid1, true); err != nil {
-		t.Fatalf("cannot re-mark a block: %s", err)
-	}
-	if err := s.MarkBlock(ctx, 1, vid1, false); err != nil {
-		t.Fatalf("cannot re-mark a block: %s", err)
-	}
-
-	if err := s.MarkBlock(ctx, 4129, vid1, true); err == nil {
-		t.Error("was able to mark a non existing block")
-	}
-	if err := s.MarkBlock(ctx, 1, 29144192, true); err == nil {
-		t.Error("was able to mark a block for a non existing validator")
+			if err := s.InsertBlock(ctx, tc.block); !tc.wantErr.Is(err) {
+				t.Errorf("want %q error, got %#v", tc.wantErr, err)
+			}
+		})
 	}
 }
 

@@ -11,3 +11,13 @@ services:
 
 go:
 - tip
+
+notifications:
+  email: false
+
+# whitelist long living branches to avoid testing feature branches twice (as
+# branch and as pull request)
+branches:
+  only:
+  - master
+  - /^v[0-9]+\.[0-9]+\.[0-9]+$/
