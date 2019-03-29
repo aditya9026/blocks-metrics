@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -12,8 +14,14 @@ import (
 )
 
 type TendermintClient struct {
-	mu   sync.Mutex
+	idCnt uint64
+
 	conn *websocket.Conn
+
+	stop chan struct{}
+
+	mu   sync.Mutex
+	resp map[string]chan<- *jsonrpcResponse
 }
 
 // DialTendermint returns a client that is maintains a websocket connection to
@@ -24,75 +32,121 @@ func DialTendermint(websocketURL string) (*TendermintClient, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "dial")
 	}
-	return &TendermintClient{conn: c}, nil
+	cli := &TendermintClient{
+		conn: c,
+		stop: make(chan struct{}),
+		resp: make(map[string]chan<- *jsonrpcResponse),
+	}
+	go cli.readLoop()
+	return cli, nil
 }
 
 func (c *TendermintClient) Close() error {
+	close(c.stop)
 	return c.conn.Close()
 }
 
-// Get sends a request to the tendermint node and loads the JSON encoded
-// response content into given destination structure.
-// Requests that were unsuccessful because of throttling are retried before
-// returning ErrThrottled error.
+func (c *TendermintClient) readLoop() {
+	for {
+		select {
+		case <-c.stop:
+			return
+		default:
+		}
+
+		var resp jsonrpcResponse
+		if err := c.conn.ReadJSON(&resp); err != nil {
+			log.Printf("cannot unmarshal JSONRPC message: %s", err)
+			continue
+		}
+
+		c.mu.Lock()
+		respc, ok := c.resp[resp.CorrelationID]
+		delete(c.resp, resp.CorrelationID)
+		c.mu.Unlock()
+
+		if ok {
+			// repc is expected to be a buffered channel so this
+			// operation must never block.
+			respc <- &resp
+		}
+	}
+}
+
+// Do makes a jsonrpc call. This method is safe for concurrent calls.
 //
 // Use API as described in https://tendermint.com/rpc/
-func (c *TendermintClient) Get(ctx context.Context, dest interface{}, method string, args ...interface{}) error {
+func (c *TendermintClient) Do(method string, dest interface{}, args ...interface{}) error {
 	params := make([]string, len(args))
 	for i, v := range args {
 		params[i] = fmt.Sprint(v)
 	}
-	req := struct {
-		Method string   `json:"method"`
-		Params []string `json:"params"`
-	}{
-		Method: method,
-		Params: params,
+	req := jsonrpcRequest{
+		ProtocolVersion: "2.0",
+		CorrelationID:   fmt.Sprint(atomic.AddUint64(&c.idCnt, 1)),
+		Method:          method,
+		Params:          params,
 	}
 
-	// Usually because this is a single socket connection a correlation ID
-	// should be used to match messages. In this case this is a sequential
-	// read-write call without concurrent use. It is easier to sequentially
-	// process data. Use lock to ensure no request-response is being mixed.
+	respc := make(chan *jsonrpcResponse, 1)
 	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.resp[req.CorrelationID] = respc
+	c.mu.Unlock()
 
 	if err := c.conn.WriteJSON(req); err != nil {
 		return errors.Wrap(err, "write JSON")
 	}
 
-	if err := c.conn.ReadJSON(dest); err != nil {
-		return errors.Wrap(err, "read JSON")
+	resp := <-respc
+
+	if resp.Error != nil {
+		return errors.Wrapf(ErrFailedResponse,
+			"%d: %s",
+			resp.Error.Code, resp.Error.Message)
+	}
+	if err := json.Unmarshal(resp.Result, dest); err != nil {
+		return errors.Wrap(err, "cannot unmarshal result")
 	}
 	return nil
 }
 
+type jsonrpcRequest struct {
+	ProtocolVersion string   `json:"jsonrpc"`
+	CorrelationID   string   `json:"id"`
+	Method          string   `json:"method"`
+	Params          []string `json:"params,omitempty"`
+}
+
+type jsonrpcResponse struct {
+	ProtocolVersion string `json:"jsonrpc"`
+	CorrelationID   string `json:"id"`
+	Result          json.RawMessage
+	Error           *struct {
+		Code    int64
+		Message string
+	}
+}
+
 var (
 	ErrFailedResponse = errors.New("failed response")
-
-	// ErrThrottled is returned when a request is rejected because of
-	// server throttling policy.
-	ErrThrottled = errors.New("throttled")
 )
 
 // Validators return all validators as represented on the block at given
 // height.
 func Validators(ctx context.Context, c *TendermintClient, blockHeight int64) ([]*TendermintValidator, error) {
 	var payload struct {
-		Result struct {
-			Validators []struct {
-				Address hexstring
-				PubKey  struct {
-					Value []byte
-				} `json:"pub_key"`
-			}
+		Validators []struct {
+			Address hexstring
+			PubKey  struct {
+				Value []byte
+			} `json:"pub_key"`
 		}
 	}
-	if err := c.Get(ctx, &payload, "validators", blockHeight); err != nil {
+	if err := c.Do("validators", &payload, blockHeight); err != nil {
 		return nil, errors.Wrap(err, "query tendermint")
 	}
 	var validators []*TendermintValidator
-	for _, v := range payload.Result.Validators {
+	for _, v := range payload.Validators {
 		validators = append(validators, &TendermintValidator{
 			Address: v.Address,
 			PubKey:  v.PubKey.Value,
@@ -108,42 +162,35 @@ type TendermintValidator struct {
 
 func Commit(ctx context.Context, c *TendermintClient, height int64) (*TendermintCommit, error) {
 	var payload struct {
-		Error  json.RawMessage `json:"error"` // Tendermint cannot decide on the type.
-		Result struct {
-			SignedHeader struct {
-				Header struct {
-					Height          sint64    `json:"height"`
-					Time            time.Time `json:"time"`
-					ProposerAddress hexstring `json:"proposer_address"`
-				} `json:"header"`
-				Commit struct {
-					BlockID struct {
-						Hash hexstring `json:"hash"`
-					} `json:"block_id"`
-					Precommits []*struct {
-						ValidatorAddress hexstring `json:"validator_address"`
-					} `json:"precommits"`
-				} `json:"commit"`
-			} `json:"signed_header"`
-		} `json:"result"`
+		SignedHeader struct {
+			Header struct {
+				Height          sint64    `json:"height"`
+				Time            time.Time `json:"time"`
+				ProposerAddress hexstring `json:"proposer_address"`
+			} `json:"header"`
+			Commit struct {
+				BlockID struct {
+					Hash hexstring `json:"hash"`
+				} `json:"block_id"`
+				Precommits []*struct {
+					ValidatorAddress hexstring `json:"validator_address"`
+				} `json:"precommits"`
+			} `json:"commit"`
+		} `json:"signed_header"`
 	}
 
-	if err := c.Get(ctx, &payload, "commit", height); err != nil {
+	if err := c.Do("commit", &payload, height); err != nil {
 		return nil, errors.Wrap(err, "query tendermint")
 	}
 
-	if payload.Error != nil {
-		return nil, errors.Wrapf(ErrFailedResponse, string(payload.Error))
-	}
-
 	commit := TendermintCommit{
-		Height:          payload.Result.SignedHeader.Header.Height.Int64(),
-		Hash:            payload.Result.SignedHeader.Commit.BlockID.Hash,
-		Time:            payload.Result.SignedHeader.Header.Time.UTC(),
-		ProposerAddress: payload.Result.SignedHeader.Header.ProposerAddress,
+		Height:          payload.SignedHeader.Header.Height.Int64(),
+		Hash:            payload.SignedHeader.Commit.BlockID.Hash,
+		Time:            payload.SignedHeader.Header.Time.UTC(),
+		ProposerAddress: payload.SignedHeader.Header.ProposerAddress,
 	}
 
-	for _, pc := range payload.Result.SignedHeader.Commit.Precommits {
+	for _, pc := range payload.SignedHeader.Commit.Precommits {
 		if pc == nil {
 			continue
 		}
