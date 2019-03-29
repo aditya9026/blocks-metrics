@@ -27,7 +27,7 @@ func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 
 	// Keep the mapping for validator address to their numeric ID in memory
 	// to avoid querying the database for every insert.
-	validatorIDs := make(map[string]int64)
+	validatorIDs := newValidatorsCache(tmc, st)
 
 	for {
 		c, err := Commit(ctx, tmc, syncedHeight+1)
@@ -43,33 +43,25 @@ func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 		}
 		syncedHeight = c.Height
 
-		pid, ok := validatorIDs[string(c.ProposerAddress)]
-		if !ok {
-			pid, err = validatorID(ctx, tmc, st, c.ProposerAddress, c.Height)
-			if err != nil {
-				return inserted, errors.Wrapf(err, "proposer address %x", c.ProposerAddress)
-			}
-			validatorIDs[string(c.ProposerAddress)] = pid
+		propID, err := validatorIDs.DatabaseID(ctx, c.ProposerAddress, c.Height)
+		if err != nil {
+			return inserted, errors.Wrap(err, "validator ID")
 		}
 
 		participantIDs := make([]int64, len(c.ParticipantAddresses))
 		for i, addr := range c.ParticipantAddresses {
-			pid, ok := validatorIDs[string(addr)]
-			if !ok {
-				pid, err = validatorID(ctx, tmc, st, addr, c.Height)
-				if err != nil {
-					return inserted, errors.Wrapf(err, "validator address %x", addr)
-				}
-				validatorIDs[string(addr)] = pid
+			partID, err := validatorIDs.DatabaseID(ctx, addr, c.Height)
+			if err != nil {
+				return inserted, errors.Wrap(err, "validator ID")
 			}
-			participantIDs[i] = pid
+			participantIDs[i] = partID
 		}
 
 		block := Block{
 			Height:         c.Height,
 			Hash:           c.Hash,
 			Time:           c.Time.UTC(),
-			ProposerID:     pid,
+			ProposerID:     propID,
 			ParticipantIDs: participantIDs,
 		}
 		if err := st.InsertBlock(ctx, block); err != nil {
@@ -79,22 +71,38 @@ func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 	}
 }
 
-// validatorID will return an ID of a validator with given address. If not
+// validatorsCache maintain a cache for the mapping of validator address to
+// that validator database ID.
+type validatorsCache struct {
+	cache map[string]int64
+	tmc   *TendermintClient
+	st    *Store
+}
+
+func newValidatorsCache(tmc *TendermintClient, st *Store) *validatorsCache {
+	return &validatorsCache{
+		cache: make(map[string]int64),
+		tmc:   tmc,
+		st:    st,
+	}
+}
+
+// DatabaseID will return an ID of a validator with given address. If not
 // present in the database it will query tendermint for the information,
 // register that validator in the database and return its ID.
-func validatorID(
-	ctx context.Context,
-	tm *TendermintClient,
-	st *Store,
-	address []byte,
-	blockHeight int64,
-) (int64, error) {
+func (vc *validatorsCache) DatabaseID(ctx context.Context, address []byte, blockHeight int64) (int64, error) {
+	id, ok := vc.cache[string(address)]
+	if ok {
+		return id, nil
+	}
+
 	if len(address) == 0 {
 		return 0, errors.Wrap(ErrNotFound, "empty validator address")
 	}
 
-	switch id, err := st.ValidatorAddressID(ctx, address); {
+	switch id, err := vc.st.ValidatorAddressID(ctx, address); {
 	case err == nil:
+		vc.cache[string(address)] = id
 		return id, nil
 	case ErrNotFound.Is(err):
 		// Not in the database yet.
@@ -102,7 +110,7 @@ func validatorID(
 		return 0, errors.Wrap(err, "query validator ID")
 	}
 
-	vs, err := Validators(ctx, tm, blockHeight)
+	vs, err := Validators(ctx, vc.tmc, blockHeight)
 	if err != nil {
 		return 0, errors.Wrap(err, "fetch validators")
 	}
@@ -111,10 +119,12 @@ func validatorID(
 		if !bytes.Equal(v.Address, address) {
 			continue
 		}
-		id, err := st.InsertValidator(ctx, v.PubKey, v.Address)
+		id, err := vc.st.InsertValidator(ctx, v.PubKey, v.Address)
 		if err != nil {
 			return 0, errors.Wrap(err, "insert validator")
 		}
+
+		vc.cache[string(address)] = id
 		return id, nil
 	}
 	return 0, errors.Wrapf(ErrNotFound, "validator %x not present at height %d", address, blockHeight)
