@@ -45,14 +45,22 @@ func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 			return inserted, errors.Wrap(err, "validator ID")
 		}
 
-		participantIDs := make([]int64, len(c.ParticipantAddresses))
-		for i, addr := range c.ParticipantAddresses {
-			partID, err := validatorIDs.DatabaseID(ctx, addr, c.Height)
-			if err != nil {
-				return inserted, errors.Wrap(err, "validator ID")
-			}
-			participantIDs[i] = partID
+		participantIDs, err := validatorIDs.DatabaseIDs(ctx, c.ParticipantAddresses, c.Height)
+		if err != nil {
+			return inserted, errors.Wrap(err, "validator ID")
 		}
+
+		// TODO: inline this
+		vSet, err := Validators(ctx, tmc, c.Height)
+		if err != nil {
+			return inserted, errors.Wrap(err, "Cannot get validator set")
+		}
+		missing := MissingValidators(vSet, c.ParticipantAddresses)
+		missingIDs, err := validatorIDs.DatabaseIDs(ctx, missing, c.Height)
+		if err != nil {
+			return inserted, errors.Wrap(err, "validator ID")
+		}
+		// END TODO
 
 		block := Block{
 			Height:         c.Height,
@@ -60,6 +68,7 @@ func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 			Time:           c.Time.UTC(),
 			ProposerID:     propID,
 			ParticipantIDs: participantIDs,
+			MissingIDs:     missingIDs,
 		}
 		if err := st.InsertBlock(ctx, block); err != nil {
 			return inserted, errors.Wrapf(err, "insert block %d", c.Height)
@@ -82,6 +91,19 @@ func newValidatorsCache(tmc *TendermintClient, st *Store) *validatorsCache {
 		tmc:   tmc,
 		st:    st,
 	}
+}
+
+// DatabaseIDs is a helper of DatabaseID to query a whole set at once
+func (vc *validatorsCache) DatabaseIDs(ctx context.Context, addresses [][]byte, blockHeight int64) ([]int64, error) {
+	res := make([]int64, len(addresses))
+	for i, addr := range addresses {
+		id, err := vc.DatabaseID(ctx, addr, blockHeight)
+		if err != nil {
+			return nil, err
+		}
+		res[i] = id
+	}
+	return res, nil
 }
 
 // DatabaseID will return an ID of a validator with given address. If not

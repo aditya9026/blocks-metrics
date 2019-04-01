@@ -132,6 +132,7 @@ type Block struct {
 	Time           time.Time
 	ProposerID     int64
 	ParticipantIDs []int64
+	MissingIDs     []int64
 }
 
 var (
