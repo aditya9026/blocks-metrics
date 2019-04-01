@@ -40,7 +40,7 @@ func TestLastBlock(t *testing.T) {
 			ParticipantIDs: []int64{vID},
 		}
 		if err := s.InsertBlock(ctx, block); err != nil {
-			t.Fatalf("cannot inser block: %s", err)
+			t.Fatalf("cannot insert block: %s", err)
 		}
 
 		if got, err := s.LatestBlock(ctx); err != nil {
@@ -167,7 +167,7 @@ func TestStoreInsertBlock(t *testing.T) {
 			}
 
 			if err := s.InsertBlock(ctx, tc.block); !tc.wantErr.Is(err) {
-				t.Errorf("want %q error, got %#v", tc.wantErr, err)
+				t.Errorf("want %q error, got %q", tc.wantErr, err)
 			}
 		})
 	}
@@ -191,23 +191,25 @@ func ensureDB(t *testing.T) (testdb *sql.DB, cleanup func()) {
 	t.Helper()
 
 	var opts = struct {
-		User    string
-		Port    string
-		Host    string
-		SSLMode string
-		DBName  string
+		User     string
+		Password string
+		Port     string
+		Host     string
+		SSLMode  string
+		DBName   string
 	}{
-		User:    env("POSTGRES_TEST_USER", "postgres"),
-		Port:    env("POSTGRES_TEST_PORT", "5432"),
-		Host:    env("POSTGRES_TEST_HOST", "localhost"),
-		SSLMode: env("POSTGRES_TEST_SSLMODE", "disable"),
+		User:     env("POSTGRES_TEST_USER", "postgres"),
+		Password: env("POSTGRES_TEST_PASSWORD", ""),
+		Port:     env("POSTGRES_TEST_PORT", "5432"),
+		Host:     env("POSTGRES_TEST_HOST", "localhost"),
+		SSLMode:  env("POSTGRES_TEST_SSLMODE", "disable"),
 		DBName: env("POSTGRES_TEST_DATABASE",
 			fmt.Sprintf("test_database_%d", time.Now().UnixNano())),
 	}
 
 	rootDsn := fmt.Sprintf(
-		"host='%s' port='%s' user='%s' dbname='postgres' sslmode='%s'",
-		opts.Host, opts.Port, opts.User, opts.SSLMode)
+		"host='%s' port='%s' user='%s' password='%s' dbname='postgres' sslmode='%s'",
+		opts.Host, opts.Port, opts.User, opts.Password, opts.SSLMode)
 	rootdb, err := sql.Open("postgres", rootDsn)
 	if err != nil {
 		t.Skipf("cannot connect to postgres: %s", err)
@@ -221,8 +223,8 @@ func ensureDB(t *testing.T) (testdb *sql.DB, cleanup func()) {
 	}
 
 	testDsn := fmt.Sprintf(
-		"host='%s' port='%s' user='%s' dbname='%s' sslmode='%s'",
-		opts.Host, opts.Port, opts.User, opts.DBName, opts.SSLMode)
+		"host='%s' port='%s' user='%s' password='%s' dbname='%s' sslmode='%s'",
+		opts.Host, opts.Port, opts.User, opts.Password, opts.DBName, opts.SSLMode)
 	testdb, err = sql.Open("postgres", testDsn)
 	if err != nil {
 		t.Fatalf("cannot connect to created database: %s", err)
