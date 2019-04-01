@@ -200,6 +200,7 @@ func Commit(ctx context.Context, c *TendermintClient, height int64) (*Tendermint
 				Height          sint64    `json:"height"`
 				Time            time.Time `json:"time"`
 				ProposerAddress hexstring `json:"proposer_address"`
+				ValidatorsHash  hexstring `json:"validators_hash"`
 			} `json:"header"`
 			Commit struct {
 				BlockID struct {
@@ -221,6 +222,7 @@ func Commit(ctx context.Context, c *TendermintClient, height int64) (*Tendermint
 		Hash:            payload.SignedHeader.Commit.BlockID.Hash,
 		Time:            payload.SignedHeader.Header.Time.UTC(),
 		ProposerAddress: payload.SignedHeader.Header.ProposerAddress,
+		ValidatorsHash:  payload.SignedHeader.Header.ValidatorsHash,
 	}
 
 	for _, pc := range payload.SignedHeader.Commit.Precommits {
@@ -238,5 +240,6 @@ type TendermintCommit struct {
 	Hash                 []byte
 	Time                 time.Time
 	ProposerAddress      []byte
+	ValidatorsHash       []byte
 	ParticipantAddresses [][]byte
 }

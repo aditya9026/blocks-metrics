@@ -28,6 +28,8 @@ func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 	// Keep the mapping for validator address to their numeric ID in memory
 	// to avoid querying the database for every insert.
 	validatorIDs := newValidatorsCache(tmc, st)
+	var vSet []*TendermintValidator
+	var vHash []byte
 
 	for {
 		c, err := Commit(ctx, tmc, syncedHeight+1)
@@ -50,17 +52,22 @@ func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 			return inserted, errors.Wrap(err, "validator ID")
 		}
 
-		// TODO: inline this
-		vSet, err := Validators(ctx, tmc, c.Height)
-		if err != nil {
-			return inserted, errors.Wrap(err, "Cannot get validator set")
+		// TODO: inline this - only query when validator hash changes
+		if !bytes.Equal(c.ValidatorsHash, vHash) {
+			var err error
+			vSet, err = Validators(ctx, tmc, c.Height)
+			if err != nil {
+				return inserted, errors.Wrap(err, "Cannot get validator set")
+			}
+			vHash = c.ValidatorsHash
 		}
+		// END TODO
+
 		missing := MissingValidators(vSet, c.ParticipantAddresses)
 		missingIDs, err := validatorIDs.DatabaseIDs(ctx, missing, c.Height)
 		if err != nil {
 			return inserted, errors.Wrap(err, "validator ID")
 		}
-		// END TODO
 
 		block := Block{
 			Height:         c.Height,
