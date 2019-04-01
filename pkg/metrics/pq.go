@@ -44,32 +44,86 @@ func (s *Store) ValidatorAddressID(ctx context.Context, address []byte) (int64, 
 }
 
 func (s *Store) InsertBlock(ctx context.Context, b Block) error {
-	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO blocks (block_height, block_hash, block_time, proposer_id, participant_ids)
-		VALUES ($1, $2, $3, $4, $5)
-	`, b.Height, b.Hash, b.Time.UTC(), b.ProposerID, pq.Array(b.ParticipantIDs))
+	if len(b.ParticipantIDs) == 0 {
+		return errors.Wrap(ErrConflict, "no participants on block")
+	}
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return castPgErr(err)
+	}
+	defer tx.Rollback()
+
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO blocks (block_height, block_hash, block_time, proposer_id)
+		VALUES ($1, $2, $3, $4)
+	`, b.Height, b.Hash, b.Time.UTC(), b.ProposerID)
+	if err != nil {
+		return castPgErr(err)
+	}
+
+	for _, part := range b.ParticipantIDs {
+		_, err = tx.ExecContext(ctx, `
+		INSERT INTO block_participations (validated, block_id, validator_id)
+		VALUES (true, $1, $2)
+		`, b.Height, part)
+		if err != nil {
+			return castPgErr(err)
+		}
+	}
+	// TODO: add the missed ones
+
+	err = tx.Commit()
 	return castPgErr(err)
 }
 
 // LatestBlock returns the block with the greatest high value. This method
 // returns ErrNotFound if no block exist.
+// Note that it doesn't load the validators by default
 func (s *Store) LatestBlock(ctx context.Context) (*Block, error) {
 	var b Block
 
 	err := s.db.QueryRowContext(ctx, `
-		SELECT block_height, block_hash, block_time, proposer_id, participant_ids
+		SELECT block_height, block_hash, block_time, proposer_id
 		FROM blocks
 		ORDER BY block_height DESC
 		LIMIT 1
-	`).Scan(&b.Height, &b.Hash, &b.Time, &b.ProposerID, pq.Array(&b.ParticipantIDs))
+	`).Scan(&b.Height, &b.Hash, &b.Time, &b.ProposerID)
 	switch err := castPgErr(err); err {
 	case nil:
+		// normalize it here, as not always stored like this in the db
+		b.Time = b.Time.UTC()
 		return &b, nil
 	case ErrNotFound:
 		return nil, errors.Wrap(err, "no blocks")
 	default:
 		return nil, errors.Wrap(castPgErr(err), "cannot select block")
 	}
+}
+
+// LoadParticipants will load the participants for the given block and update the structure.
+// Together with LatestBlock, you get the full info
+func (s *Store) LoadParticipants(ctx context.Context, b *Block) error {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT validator_id
+		FROM block_participations
+		WHERE block_id = $1 AND validated = true
+	`, b.Height)
+	if err != nil {
+		return castPgErr(err)
+	}
+
+	var participants []int64
+	for rows.Next() {
+		var pid int64
+		if err := rows.Scan(&pid); err != nil {
+			return castPgErr(err)
+		}
+		participants = append(participants, pid)
+	}
+
+	b.ParticipantIDs = participants
+	return nil
 }
 
 type Block struct {

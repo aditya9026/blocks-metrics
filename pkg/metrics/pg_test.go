@@ -43,9 +43,17 @@ func TestLastBlock(t *testing.T) {
 			t.Fatalf("cannot insert block: %s", err)
 		}
 
-		if got, err := s.LatestBlock(ctx); err != nil {
+		got, err := s.LatestBlock(ctx)
+		if err != nil {
 			t.Fatalf("cannot get latest block: %s", err)
-		} else if !reflect.DeepEqual(got, &block) {
+		}
+
+		// load the validators
+		if err := s.LoadParticipants(ctx, got); err != nil {
+			t.Fatalf("cannot load validators: %s", err)
+		}
+
+		if !reflect.DeepEqual(got, &block) {
 			t.Logf(" got %#v", got)
 			t.Logf("want %#v", &block)
 			t.Fatal("unexpected result")
