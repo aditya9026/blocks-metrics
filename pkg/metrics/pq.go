@@ -71,7 +71,16 @@ func (s *Store) InsertBlock(ctx context.Context, b Block) error {
 			return castPgErr(err)
 		}
 	}
-	// TODO: add the missed ones
+
+	for _, missed := range b.MissingIDs {
+		_, err = tx.ExecContext(ctx, `
+		INSERT INTO block_participations (validated, block_id, validator_id)
+		VALUES (false, $1, $2)
+		`, b.Height, missed)
+		if err != nil {
+			return castPgErr(err)
+		}
+	}
 
 	err = tx.Commit()
 	return castPgErr(err)
@@ -101,28 +110,60 @@ func (s *Store) LatestBlock(ctx context.Context) (*Block, error) {
 	}
 }
 
+// LoadBlock returns the block with the given block height from the database.
+// This method returns ErrNotFound if no block exist.
+// Note that it doesn't load the validators by default
+//
+// TODO: de-duplicate LatestBlock() code
+func (s *Store) LoadBlock(ctx context.Context, blockHeight int64) (*Block, error) {
+	var b Block
+
+	err := s.db.QueryRowContext(ctx, `
+		SELECT block_height, block_hash, block_time, proposer_id
+		FROM blocks
+		WHERE block_height = $1
+	`, blockHeight).Scan(&b.Height, &b.Hash, &b.Time, &b.ProposerID)
+	switch err := castPgErr(err); err {
+	case nil:
+		// normalize it here, as not always stored like this in the db
+		b.Time = b.Time.UTC()
+		return &b, nil
+	case ErrNotFound:
+		return nil, errors.Wrap(err, "no blocks")
+	default:
+		return nil, errors.Wrap(castPgErr(err), "cannot select block")
+	}
+}
+
 // LoadParticipants will load the participants for the given block and update the structure.
 // Together with LatestBlock, you get the full info
 func (s *Store) LoadParticipants(ctx context.Context, b *Block) error {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT validator_id
+		SELECT validator_id, validated
 		FROM block_participations
-		WHERE block_id = $1 AND validated = true
+		WHERE block_id = $1
 	`, b.Height)
 	if err != nil {
 		return castPgErr(err)
 	}
 
 	var participants []int64
+	var missing []int64
 	for rows.Next() {
 		var pid int64
-		if err := rows.Scan(&pid); err != nil {
+		var validated bool
+		if err := rows.Scan(&pid, &validated); err != nil {
 			return castPgErr(err)
 		}
-		participants = append(participants, pid)
+		if validated {
+			participants = append(participants, pid)
+		} else {
+			missing = append(missing, pid)
+		}
 	}
 
 	b.ParticipantIDs = participants
+	b.MissingIDs = missing
 	return nil
 }
 

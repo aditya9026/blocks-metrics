@@ -113,6 +113,21 @@ func TestStoreInsertBlock(t *testing.T) {
 				ParticipantIDs: []int64{2, 3},
 			},
 		},
+		"success with one missing": {
+			validators: []validator{
+				{address: []byte{0x01}, pubkey: []byte{0x01, 0, 0x01}},
+				{address: []byte{0x02}, pubkey: []byte{0x02, 0, 0x02}},
+				{address: []byte{0x03}, pubkey: []byte{0x03, 0, 0x03}},
+			},
+			block: Block{
+				Height:         2,
+				Hash:           []byte{0, 1, 2, 3},
+				Time:           time.Now().UTC().Round(time.Millisecond),
+				ProposerID:     3,
+				ParticipantIDs: []int64{2, 3},
+				MissingIDs:     []int64{1},
+			},
+		},
 		"missing participant ids": {
 			validators: []validator{
 				{address: []byte{0x01}, pubkey: []byte{0x01, 0, 0x01}},
@@ -175,7 +190,24 @@ func TestStoreInsertBlock(t *testing.T) {
 			}
 
 			if err := s.InsertBlock(ctx, tc.block); !tc.wantErr.Is(err) {
-				t.Errorf("want %q error, got %q", tc.wantErr, err)
+				t.Fatalf("want %q error, got %q", tc.wantErr, err)
+			}
+
+			if tc.wantErr == nil {
+				// ensure we can load it back the same
+				loaded, err := s.LoadBlock(ctx, tc.block.Height)
+				if err != nil {
+					t.Fatalf("cannot re-load block %v", err)
+				}
+				err = s.LoadParticipants(ctx, loaded)
+				if err != nil {
+					t.Fatalf("cannot load participants %v", err)
+				}
+				if !reflect.DeepEqual(loaded, &tc.block) {
+					t.Logf(" got %#v", loaded)
+					t.Logf("want %#v", &tc.block)
+					t.Fatal("unexpected result")
+				}
 			}
 		})
 	}
