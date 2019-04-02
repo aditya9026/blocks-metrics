@@ -52,7 +52,7 @@ func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 			return inserted, errors.Wrap(err, "validator ID")
 		}
 
-		// TODO: inline this - only query when validator hash changes
+		// only query when validator hash changes
 		if !bytes.Equal(c.ValidatorsHash, vHash) {
 			var err error
 			vSet, err = Validators(ctx, tmc, c.Height)
@@ -61,7 +61,6 @@ func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 			}
 			vHash = c.ValidatorsHash
 		}
-		// END TODO
 
 		missing := SubtractSets(ValidatorAddresses(vSet), c.ParticipantAddresses)
 		missingIDs, err := validatorIDs.DatabaseIDs(ctx, missing, c.Height)
