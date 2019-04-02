@@ -161,29 +161,6 @@ type TendermintValidator struct {
 	PubKey  []byte
 }
 
-// MissingValidators finds all validators who did not sign
-func MissingValidators(vSet []*TendermintValidator, signers [][]byte) [][]byte {
-	missing := ValidatorAddresses(vSet)
-	// splice out all those who we find
-	for _, signer := range signers {
-		missing = removeSigner(missing, signer)
-	}
-	return missing
-}
-
-// removeSigner will remove it from the original set if present and return the remainder
-func removeSigner(original [][]byte, toRemove []byte) [][]byte {
-	for i, o := range original {
-		if bytes.Equal(o, toRemove) {
-			// Delete this element from original
-			original[i] = original[len(original)-1]
-			original = original[:len(original)-1]
-			break
-		}
-	}
-	return original
-}
-
 // ValidatorAddresses extracts just the addresses of out a signing set
 func ValidatorAddresses(validators []*TendermintValidator) [][]byte {
 	res := make([][]byte, len(validators))
@@ -191,6 +168,27 @@ func ValidatorAddresses(validators []*TendermintValidator) [][]byte {
 		res[i] = v.Address
 	}
 	return res
+}
+
+// SubtractSets returns all elements in a that are not in b
+func SubtractSets(a [][]byte, b [][]byte) [][]byte {
+	var res [][]byte
+	// splice out all those who we find
+	for _, check := range a {
+		if !contains(b, check) {
+			res = append(res, check)
+		}
+	}
+	return res
+}
+
+func contains(haystack [][]byte, needle []byte) bool {
+	for _, hay := range haystack {
+		if bytes.Equal(hay, needle) {
+			return true
+		}
+	}
+	return false
 }
 
 func Commit(ctx context.Context, c *TendermintClient, height int64) (*TendermintCommit, error) {

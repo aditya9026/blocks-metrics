@@ -63,7 +63,7 @@ func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 		}
 		// END TODO
 
-		missing := MissingValidators(vSet, c.ParticipantAddresses)
+		missing := SubtractSets(ValidatorAddresses(vSet), c.ParticipantAddresses)
 		missingIDs, err := validatorIDs.DatabaseIDs(ctx, missing, c.Height)
 		if err != nil {
 			return inserted, errors.Wrap(err, "validator ID")
