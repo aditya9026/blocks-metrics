@@ -48,11 +48,6 @@ func TestLastBlock(t *testing.T) {
 			t.Fatalf("cannot get latest block: %s", err)
 		}
 
-		// load the validators
-		if err := s.LoadParticipants(ctx, got); err != nil {
-			t.Fatalf("cannot load validators: %s", err)
-		}
-
 		if !reflect.DeepEqual(got, &block) {
 			t.Logf(" got %#v", got)
 			t.Logf("want %#v", &block)
@@ -198,10 +193,6 @@ func TestStoreInsertBlock(t *testing.T) {
 				loaded, err := s.LoadBlock(ctx, tc.block.Height)
 				if err != nil {
 					t.Fatalf("cannot re-load block %v", err)
-				}
-				err = s.LoadParticipants(ctx, loaded)
-				if err != nil {
-					t.Fatalf("cannot load participants %v", err)
 				}
 				if !reflect.DeepEqual(loaded, &tc.block) {
 					t.Logf(" got %#v", loaded)

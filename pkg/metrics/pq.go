@@ -102,7 +102,8 @@ func (s *Store) LatestBlock(ctx context.Context) (*Block, error) {
 	if err == nil {
 		// normalize it here, as not always stored like this in the db
 		b.Time = b.Time.UTC()
-		return &b, nil
+		b.ParticipantIDs, b.MissingIDs, err = s.loadParticipants(ctx, b.Height)
+		return &b, err
 	}
 
 	err = castPgErr(err)
@@ -129,7 +130,8 @@ func (s *Store) LoadBlock(ctx context.Context, blockHeight int64) (*Block, error
 	if err == nil {
 		// normalize it here, as not always stored like this in the db
 		b.Time = b.Time.UTC()
-		return &b, nil
+		b.ParticipantIDs, b.MissingIDs, err = s.loadParticipants(ctx, b.Height)
+		return &b, err
 	}
 
 	err = castPgErr(err)
@@ -139,26 +141,26 @@ func (s *Store) LoadBlock(ctx context.Context, blockHeight int64) (*Block, error
 	return nil, errors.Wrap(castPgErr(err), "cannot select block")
 }
 
-// LoadParticipants will load the participants for the given block and update the structure.
-// Together with LatestBlock, you get the full info
-func (s *Store) LoadParticipants(ctx context.Context, b *Block) error {
+// loadParticipants will load the participants for the given block and update the structure.
+// Automatically called as part of Load/LatestBlock to give you the full info
+func (s *Store) loadParticipants(ctx context.Context, blockHeight int64) (participants []int64, missing []int64, err error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT validator_id, validated
 		FROM block_participations
 		WHERE block_id = $1
-	`, b.Height)
+	`, blockHeight)
 	if err != nil {
-		return wrapPgErr(err, "query participants")
+		err = wrapPgErr(err, "query participants")
+		return
 	}
 	defer rows.Close()
 
-	var participants []int64
-	var missing []int64
 	for rows.Next() {
 		var pid int64
 		var validated bool
-		if err := rows.Scan(&pid, &validated); err != nil {
-			return castPgErr(err)
+		if err = rows.Scan(&pid, &validated); err != nil {
+			err = wrapPgErr(rows.Err(), "scanning participants")
+			return
 		}
 		if validated {
 			participants = append(participants, pid)
@@ -167,9 +169,8 @@ func (s *Store) LoadParticipants(ctx context.Context, b *Block) error {
 		}
 	}
 
-	b.ParticipantIDs = participants
-	b.MissingIDs = missing
-	return wrapPgErr(rows.Err(), "scanning participants")
+	err = wrapPgErr(rows.Err(), "scanning participants")
+	return
 }
 
 type Block struct {
