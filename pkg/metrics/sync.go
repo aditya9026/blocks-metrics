@@ -57,7 +57,7 @@ func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 			var err error
 			vSet, err = Validators(ctx, tmc, c.Height)
 			if err != nil {
-				return inserted, errors.Wrap(err, "Cannot get validator set")
+				return inserted, errors.Wrap(err, "cannot get validator set")
 			}
 			vHash = c.ValidatorsHash
 		}

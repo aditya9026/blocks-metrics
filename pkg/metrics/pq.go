@@ -48,9 +48,9 @@ func (s *Store) InsertBlock(ctx context.Context, b Block) error {
 		return errors.Wrap(ErrConflict, "no participants on block")
 	}
 
-	tx, err := s.db.Begin()
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return castPgErr(err)
+		return errors.Wrap(err, "cannot create transaction")
 	}
 	defer tx.Rollback()
 
@@ -59,7 +59,7 @@ func (s *Store) InsertBlock(ctx context.Context, b Block) error {
 		VALUES ($1, $2, $3, $4)
 	`, b.Height, b.Hash, b.Time.UTC(), b.ProposerID)
 	if err != nil {
-		return castPgErr(err)
+		return wrapPgErr(err, "insert block")
 	}
 
 	for _, part := range b.ParticipantIDs {
@@ -68,7 +68,7 @@ func (s *Store) InsertBlock(ctx context.Context, b Block) error {
 		VALUES (true, $1, $2)
 		`, b.Height, part)
 		if err != nil {
-			return castPgErr(err)
+			return wrapPgErr(err, "insert block participant")
 		}
 	}
 
@@ -78,12 +78,12 @@ func (s *Store) InsertBlock(ctx context.Context, b Block) error {
 		VALUES (false, $1, $2)
 		`, b.Height, missed)
 		if err != nil {
-			return castPgErr(err)
+			return wrapPgErr(err, "insert block participant")
 		}
 	}
 
 	err = tx.Commit()
-	return castPgErr(err)
+	return wrapPgErr(err, "commit block tx")
 }
 
 // LatestBlock returns the block with the greatest high value. This method
@@ -98,16 +98,18 @@ func (s *Store) LatestBlock(ctx context.Context) (*Block, error) {
 		ORDER BY block_height DESC
 		LIMIT 1
 	`).Scan(&b.Height, &b.Hash, &b.Time, &b.ProposerID)
-	switch err := castPgErr(err); err {
-	case nil:
+
+	if err == nil {
 		// normalize it here, as not always stored like this in the db
 		b.Time = b.Time.UTC()
 		return &b, nil
-	case ErrNotFound:
-		return nil, errors.Wrap(err, "no blocks")
-	default:
-		return nil, errors.Wrap(castPgErr(err), "cannot select block")
 	}
+
+	err = castPgErr(err)
+	if ErrNotFound.Is(err) {
+		return nil, errors.Wrap(err, "no blocks")
+	}
+	return nil, errors.Wrap(castPgErr(err), "cannot select block")
 }
 
 // LoadBlock returns the block with the given block height from the database.
@@ -123,16 +125,18 @@ func (s *Store) LoadBlock(ctx context.Context, blockHeight int64) (*Block, error
 		FROM blocks
 		WHERE block_height = $1
 	`, blockHeight).Scan(&b.Height, &b.Hash, &b.Time, &b.ProposerID)
-	switch err := castPgErr(err); err {
-	case nil:
+
+	if err == nil {
 		// normalize it here, as not always stored like this in the db
 		b.Time = b.Time.UTC()
 		return &b, nil
-	case ErrNotFound:
-		return nil, errors.Wrap(err, "no blocks")
-	default:
-		return nil, errors.Wrap(castPgErr(err), "cannot select block")
 	}
+
+	err = castPgErr(err)
+	if ErrNotFound.Is(err) {
+		return nil, errors.Wrap(err, "no blocks")
+	}
+	return nil, errors.Wrap(castPgErr(err), "cannot select block")
 }
 
 // LoadParticipants will load the participants for the given block and update the structure.
@@ -144,8 +148,9 @@ func (s *Store) LoadParticipants(ctx context.Context, b *Block) error {
 		WHERE block_id = $1
 	`, b.Height)
 	if err != nil {
-		return castPgErr(err)
+		return wrapPgErr(err, "query participants")
 	}
+	defer rows.Close()
 
 	var participants []int64
 	var missing []int64
@@ -164,7 +169,7 @@ func (s *Store) LoadParticipants(ctx context.Context, b *Block) error {
 
 	b.ParticipantIDs = participants
 	b.MissingIDs = missing
-	return nil
+	return wrapPgErr(rows.Err(), "scanning participants")
 }
 
 type Block struct {
@@ -185,6 +190,13 @@ var (
 	// because of database constraints.
 	ErrConflict = errors.New("conflict")
 )
+
+func wrapPgErr(err error, msg string) error {
+	if err == nil {
+		return nil
+	}
+	return errors.Wrap(castPgErr(err), msg)
+}
 
 func castPgErr(err error) error {
 	if err == nil {
