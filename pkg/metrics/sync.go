@@ -18,7 +18,7 @@ func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 
 	switch block, err := st.LatestBlock(ctx); {
 	case ErrNotFound.Is(err):
-		syncedHeight = 1
+		syncedHeight = 0
 	case err == nil:
 		syncedHeight = block.Height
 	default:
