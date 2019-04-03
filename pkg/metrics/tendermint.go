@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -160,6 +161,36 @@ type TendermintValidator struct {
 	PubKey  []byte
 }
 
+// ValidatorAddresses extracts just the addresses of out a signing set
+func ValidatorAddresses(validators []*TendermintValidator) [][]byte {
+	res := make([][]byte, len(validators))
+	for i, v := range validators {
+		res[i] = v.Address
+	}
+	return res
+}
+
+// SubtractSets returns all elements in a that are not in b
+func SubtractSets(a [][]byte, b [][]byte) [][]byte {
+	var res [][]byte
+	// splice out all those who we find
+	for _, check := range a {
+		if !contains(b, check) {
+			res = append(res, check)
+		}
+	}
+	return res
+}
+
+func contains(haystack [][]byte, needle []byte) bool {
+	for _, hay := range haystack {
+		if bytes.Equal(hay, needle) {
+			return true
+		}
+	}
+	return false
+}
+
 func Commit(ctx context.Context, c *TendermintClient, height int64) (*TendermintCommit, error) {
 	var payload struct {
 		SignedHeader struct {
@@ -167,6 +198,7 @@ func Commit(ctx context.Context, c *TendermintClient, height int64) (*Tendermint
 				Height          sint64    `json:"height"`
 				Time            time.Time `json:"time"`
 				ProposerAddress hexstring `json:"proposer_address"`
+				ValidatorsHash  hexstring `json:"validators_hash"`
 			} `json:"header"`
 			Commit struct {
 				BlockID struct {
@@ -188,6 +220,7 @@ func Commit(ctx context.Context, c *TendermintClient, height int64) (*Tendermint
 		Hash:            payload.SignedHeader.Commit.BlockID.Hash,
 		Time:            payload.SignedHeader.Header.Time.UTC(),
 		ProposerAddress: payload.SignedHeader.Header.ProposerAddress,
+		ValidatorsHash:  payload.SignedHeader.Header.ValidatorsHash,
 	}
 
 	for _, pc := range payload.SignedHeader.Commit.Precommits {
@@ -205,5 +238,6 @@ type TendermintCommit struct {
 	Hash                 []byte
 	Time                 time.Time
 	ProposerAddress      []byte
+	ValidatorsHash       []byte
 	ParticipantAddresses [][]byte
 }

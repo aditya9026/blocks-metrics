@@ -28,6 +28,8 @@ func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 	// Keep the mapping for validator address to their numeric ID in memory
 	// to avoid querying the database for every insert.
 	validatorIDs := newValidatorsCache(tmc, st)
+	var vSet []*TendermintValidator
+	var vHash []byte
 
 	for {
 		c, err := Commit(ctx, tmc, syncedHeight+1)
@@ -45,13 +47,25 @@ func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 			return inserted, errors.Wrap(err, "validator ID")
 		}
 
-		participantIDs := make([]int64, len(c.ParticipantAddresses))
-		for i, addr := range c.ParticipantAddresses {
-			partID, err := validatorIDs.DatabaseID(ctx, addr, c.Height)
+		participantIDs, err := validatorIDs.DatabaseIDs(ctx, c.ParticipantAddresses, c.Height)
+		if err != nil {
+			return inserted, errors.Wrap(err, "validator ID")
+		}
+
+		// only query when validator hash changes
+		if !bytes.Equal(c.ValidatorsHash, vHash) {
+			var err error
+			vSet, err = Validators(ctx, tmc, c.Height)
 			if err != nil {
-				return inserted, errors.Wrap(err, "validator ID")
+				return inserted, errors.Wrap(err, "cannot get validator set")
 			}
-			participantIDs[i] = partID
+			vHash = c.ValidatorsHash
+		}
+
+		missing := SubtractSets(ValidatorAddresses(vSet), c.ParticipantAddresses)
+		missingIDs, err := validatorIDs.DatabaseIDs(ctx, missing, c.Height)
+		if err != nil {
+			return inserted, errors.Wrap(err, "validator ID")
 		}
 
 		block := Block{
@@ -60,6 +74,7 @@ func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 			Time:           c.Time.UTC(),
 			ProposerID:     propID,
 			ParticipantIDs: participantIDs,
+			MissingIDs:     missingIDs,
 		}
 		if err := st.InsertBlock(ctx, block); err != nil {
 			return inserted, errors.Wrapf(err, "insert block %d", c.Height)
@@ -82,6 +97,19 @@ func newValidatorsCache(tmc *TendermintClient, st *Store) *validatorsCache {
 		tmc:   tmc,
 		st:    st,
 	}
+}
+
+// DatabaseIDs is a helper of DatabaseID to query a whole set at once
+func (vc *validatorsCache) DatabaseIDs(ctx context.Context, addresses [][]byte, blockHeight int64) ([]int64, error) {
+	res := make([]int64, len(addresses))
+	for i, addr := range addresses {
+		id, err := vc.DatabaseID(ctx, addr, blockHeight)
+		if err != nil {
+			return nil, err
+		}
+		res[i] = id
+	}
+	return res, nil
 }
 
 // DatabaseID will return an ID of a validator with given address. If not

@@ -40,12 +40,15 @@ func TestLastBlock(t *testing.T) {
 			ParticipantIDs: []int64{vID},
 		}
 		if err := s.InsertBlock(ctx, block); err != nil {
-			t.Fatalf("cannot inser block: %s", err)
+			t.Fatalf("cannot insert block: %s", err)
 		}
 
-		if got, err := s.LatestBlock(ctx); err != nil {
+		got, err := s.LatestBlock(ctx)
+		if err != nil {
 			t.Fatalf("cannot get latest block: %s", err)
-		} else if !reflect.DeepEqual(got, &block) {
+		}
+
+		if !reflect.DeepEqual(got, &block) {
 			t.Logf(" got %#v", got)
 			t.Logf("want %#v", &block)
 			t.Fatal("unexpected result")
@@ -103,6 +106,21 @@ func TestStoreInsertBlock(t *testing.T) {
 				Time:           time.Now().UTC().Round(time.Millisecond),
 				ProposerID:     2,
 				ParticipantIDs: []int64{2, 3},
+			},
+		},
+		"success with one missing": {
+			validators: []validator{
+				{address: []byte{0x01}, pubkey: []byte{0x01, 0, 0x01}},
+				{address: []byte{0x02}, pubkey: []byte{0x02, 0, 0x02}},
+				{address: []byte{0x03}, pubkey: []byte{0x03, 0, 0x03}},
+			},
+			block: Block{
+				Height:         2,
+				Hash:           []byte{0, 1, 2, 3},
+				Time:           time.Now().UTC().Round(time.Millisecond),
+				ProposerID:     3,
+				ParticipantIDs: []int64{2, 3},
+				MissingIDs:     []int64{1},
 			},
 		},
 		"missing participant ids": {
@@ -167,7 +185,20 @@ func TestStoreInsertBlock(t *testing.T) {
 			}
 
 			if err := s.InsertBlock(ctx, tc.block); !tc.wantErr.Is(err) {
-				t.Errorf("want %q error, got %#v", tc.wantErr, err)
+				t.Fatalf("want %q error, got %q", tc.wantErr, err)
+			}
+
+			if tc.wantErr == nil {
+				// ensure we can load it back the same
+				loaded, err := s.LoadBlock(ctx, tc.block.Height)
+				if err != nil {
+					t.Fatalf("cannot re-load block %v", err)
+				}
+				if !reflect.DeepEqual(loaded, &tc.block) {
+					t.Logf(" got %#v", loaded)
+					t.Logf("want %#v", &tc.block)
+					t.Fatal("unexpected result")
+				}
 			}
 		})
 	}
@@ -191,23 +222,25 @@ func ensureDB(t *testing.T) (testdb *sql.DB, cleanup func()) {
 	t.Helper()
 
 	var opts = struct {
-		User    string
-		Port    string
-		Host    string
-		SSLMode string
-		DBName  string
+		User     string
+		Password string
+		Port     string
+		Host     string
+		SSLMode  string
+		DBName   string
 	}{
-		User:    env("POSTGRES_TEST_USER", "postgres"),
-		Port:    env("POSTGRES_TEST_PORT", "5432"),
-		Host:    env("POSTGRES_TEST_HOST", "localhost"),
-		SSLMode: env("POSTGRES_TEST_SSLMODE", "disable"),
+		User:     env("POSTGRES_TEST_USER", "postgres"),
+		Password: env("POSTGRES_TEST_PASSWORD", ""),
+		Port:     env("POSTGRES_TEST_PORT", "5432"),
+		Host:     env("POSTGRES_TEST_HOST", "localhost"),
+		SSLMode:  env("POSTGRES_TEST_SSLMODE", "disable"),
 		DBName: env("POSTGRES_TEST_DATABASE",
 			fmt.Sprintf("test_database_%d", time.Now().UnixNano())),
 	}
 
 	rootDsn := fmt.Sprintf(
-		"host='%s' port='%s' user='%s' dbname='postgres' sslmode='%s'",
-		opts.Host, opts.Port, opts.User, opts.SSLMode)
+		"host='%s' port='%s' user='%s' password='%s' dbname='postgres' sslmode='%s'",
+		opts.Host, opts.Port, opts.User, opts.Password, opts.SSLMode)
 	rootdb, err := sql.Open("postgres", rootDsn)
 	if err != nil {
 		t.Skipf("cannot connect to postgres: %s", err)
@@ -221,8 +254,8 @@ func ensureDB(t *testing.T) (testdb *sql.DB, cleanup func()) {
 	}
 
 	testDsn := fmt.Sprintf(
-		"host='%s' port='%s' user='%s' dbname='%s' sslmode='%s'",
-		opts.Host, opts.Port, opts.User, opts.DBName, opts.SSLMode)
+		"host='%s' port='%s' user='%s' password='%s' dbname='%s' sslmode='%s'",
+		opts.Host, opts.Port, opts.User, opts.Password, opts.DBName, opts.SSLMode)
 	testdb, err = sql.Open("postgres", testDsn)
 	if err != nil {
 		t.Fatalf("cannot connect to created database: %s", err)
