@@ -32,7 +32,18 @@ func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 	var vHash []byte
 
 	for {
-		c, err := Commit(ctx, tmc, syncedHeight+1)
+		nextHeight := syncedHeight + 1
+		info, err := Info(tmc)
+		if err != nil {
+			return inserted, errors.Wrap(err, "info")
+		}
+
+		if info.LastBlockHeight < nextHeight {
+			// make sure we don't run into the bug where we try to retrieve a commit for non-existent height
+			continue
+		}
+
+		c, err := Commit(ctx, tmc, nextHeight)
 		if err != nil {
 
 			// BUG this can happen when the commit does not exist.

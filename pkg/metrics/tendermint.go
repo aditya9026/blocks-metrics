@@ -132,6 +132,25 @@ var (
 	ErrFailedResponse = errors.New("failed response")
 )
 
+// Info is used to check the last block height
+func Info(c *TendermintClient) (*ABCIInfo, error) {
+	var payload struct {
+		Response struct {
+			LastBlockHeight sint64 `json:"last_block_height"`
+		} `json:"response"`
+	}
+
+	if err := c.Do("abci_info", &payload); err != nil {
+		return nil, errors.Wrap(err, "query tendermint")
+	}
+
+	return &ABCIInfo{LastBlockHeight: int64(payload.Response.LastBlockHeight)}, nil
+}
+
+type ABCIInfo struct {
+	LastBlockHeight int64 `json:"last_block_height"`
+}
+
 // Validators return all validators as represented on the block at given
 // height.
 func Validators(ctx context.Context, c *TendermintClient, blockHeight int64) ([]*TendermintValidator, error) {
