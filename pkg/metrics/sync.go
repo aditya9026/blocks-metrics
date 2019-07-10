@@ -36,7 +36,7 @@ func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 
 	for {
 		nextHeight := syncedHeight + 1
-		info, err := Info(tmc)
+		info, err := AbciInfo(tmc)
 		if err != nil {
 			return inserted, errors.Wrap(err, "info")
 		}

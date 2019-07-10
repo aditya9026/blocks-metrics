@@ -132,8 +132,8 @@ var (
 	ErrFailedResponse = errors.New("failed response")
 )
 
-// Info returns abci_info.
-func Info(c *TendermintClient) (*ABCIInfo, error) {
+// AbciInfo returns abci_info.
+func AbciInfo(c *TendermintClient) (*ABCIInfo, error) {
 	var payload struct {
 		Response struct {
 			LastBlockHeight sint64 `json:"last_block_height"`
