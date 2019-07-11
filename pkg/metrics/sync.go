@@ -15,8 +15,9 @@ const syncRetryTimeout = 3 * time.Second
 // blocks inserted, even if returning an error.
 func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 	var (
-		inserted     uint
-		syncedHeight int64
+		inserted        uint
+		syncedHeight    int64
+		lastKnownHeight int64
 	)
 
 	switch block, err := st.LatestBlock(ctx); {
@@ -36,12 +37,16 @@ func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 
 	for {
 		nextHeight := syncedHeight + 1
-		info, err := AbciInfo(tmc)
-		if err != nil {
-			return inserted, errors.Wrap(err, "info")
+		if lastKnownHeight < nextHeight {
+			info, err := AbciInfo(tmc)
+			if err != nil {
+				return inserted, errors.Wrap(err, "info")
+			}
+
+			lastKnownHeight = info.LastBlockHeight
 		}
 
-		if info.LastBlockHeight < nextHeight {
+		if lastKnownHeight < nextHeight {
 			select {
 			case <-ctx.Done():
 				return inserted, ctx.Err()
