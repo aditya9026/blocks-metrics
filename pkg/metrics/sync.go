@@ -3,17 +3,21 @@ package metrics
 import (
 	"bytes"
 	"context"
+	"time"
 
 	"github.com/iov-one/block-metrics/pkg/errors"
 )
+
+const syncRetryTimeout = 3 * time.Second
 
 // Sync uploads to local store all blocks that are not present yet, starting
 // with the blocks with the lowest hight first. It always returns the number of
 // blocks inserted, even if returning an error.
 func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 	var (
-		inserted     uint
-		syncedHeight int64
+		inserted        uint
+		syncedHeight    int64
+		lastKnownHeight int64
 	)
 
 	switch block, err := st.LatestBlock(ctx); {
@@ -32,7 +36,27 @@ func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 	var vHash []byte
 
 	for {
-		c, err := Commit(ctx, tmc, syncedHeight+1)
+		nextHeight := syncedHeight + 1
+		if lastKnownHeight < nextHeight {
+			info, err := AbciInfo(tmc)
+			if err != nil {
+				return inserted, errors.Wrap(err, "info")
+			}
+
+			lastKnownHeight = info.LastBlockHeight
+		}
+
+		if lastKnownHeight < nextHeight {
+			select {
+			case <-ctx.Done():
+				return inserted, ctx.Err()
+			case <-time.After(syncRetryTimeout):
+			}
+			// make sure we don't run into the bug where we try to retrieve a commit for non-existent height
+			continue
+		}
+
+		c, err := Commit(ctx, tmc, nextHeight)
 		if err != nil {
 
 			// BUG this can happen when the commit does not exist.
