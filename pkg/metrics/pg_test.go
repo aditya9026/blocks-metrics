@@ -38,6 +38,7 @@ func TestLastBlock(t *testing.T) {
 			Time:           time.Now().UTC().Round(time.Microsecond),
 			ProposerID:     vID,
 			ParticipantIDs: []int64{vID},
+			Messages:       []string{"test/mymsg"},
 		}
 		if err := s.InsertBlock(ctx, block); err != nil {
 			t.Fatalf("cannot insert block: %s", err)
@@ -106,6 +107,7 @@ func TestStoreInsertBlock(t *testing.T) {
 				Time:           time.Now().UTC().Round(time.Millisecond),
 				ProposerID:     2,
 				ParticipantIDs: []int64{2, 3},
+				Messages:       []string{"test/one"},
 			},
 		},
 		"success with one missing": {
@@ -121,6 +123,7 @@ func TestStoreInsertBlock(t *testing.T) {
 				ProposerID:     3,
 				ParticipantIDs: []int64{2, 3},
 				MissingIDs:     []int64{1},
+				Messages:       []string{"test/one", "test/two"},
 			},
 		},
 		"missing participant ids": {
@@ -133,6 +136,7 @@ func TestStoreInsertBlock(t *testing.T) {
 				Time:           time.Now().UTC().Round(time.Millisecond),
 				ProposerID:     1,
 				ParticipantIDs: nil,
+				Messages:       []string{},
 			},
 			wantErr: ErrConflict,
 		},
@@ -148,6 +152,7 @@ func TestStoreInsertBlock(t *testing.T) {
 				Time:           time.Now().UTC().Round(time.Millisecond),
 				ProposerID:     4,
 				ParticipantIDs: []int64{2, 3},
+				Messages:       []string{},
 			},
 			wantErr: ErrConflict,
 		},
@@ -239,7 +244,7 @@ func ensureDB(t *testing.T) (testdb *sql.DB, cleanup func()) {
 	}
 
 	rootDsn := fmt.Sprintf(
-		"host='%s' port='%s' user='%s' password='%s' dbname='postgres' sslmode='%s'",
+		"host='%s' port='%s' user='%s' password=%s dbname='postgres' sslmode='%s'",
 		opts.Host, opts.Port, opts.User, opts.Password, opts.SSLMode)
 	rootdb, err := sql.Open("postgres", rootDsn)
 	if err != nil {
