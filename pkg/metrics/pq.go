@@ -55,9 +55,9 @@ func (s *Store) InsertBlock(ctx context.Context, b Block) error {
 	defer tx.Rollback()
 
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO blocks (block_height, block_hash, block_time, proposer_id)
-		VALUES ($1, $2, $3, $4)
-	`, b.Height, b.Hash, b.Time.UTC(), b.ProposerID)
+		INSERT INTO blocks (block_height, block_hash, block_time, proposer_id, messages, fee_frac)
+		VALUES ($1, $2, $3, $4, $5, $6)
+	`, b.Height, b.Hash, b.Time.UTC(), b.ProposerID, pq.Array(b.Messages), b.FeeFrac)
 	if err != nil {
 		return wrapPgErr(err, "insert block")
 	}
@@ -93,11 +93,11 @@ func (s *Store) LatestBlock(ctx context.Context) (*Block, error) {
 	var b Block
 
 	err := s.db.QueryRowContext(ctx, `
-		SELECT block_height, block_hash, block_time, proposer_id
+		SELECT block_height, block_hash, block_time, proposer_id, messages, fee_frac
 		FROM blocks
 		ORDER BY block_height DESC
 		LIMIT 1
-	`).Scan(&b.Height, &b.Hash, &b.Time, &b.ProposerID)
+	`).Scan(&b.Height, &b.Hash, &b.Time, &b.ProposerID, pq.Array(&b.Messages), &b.FeeFrac)
 
 	if err == nil {
 		// normalize it here, as not always stored like this in the db
@@ -122,10 +122,10 @@ func (s *Store) LoadBlock(ctx context.Context, blockHeight int64) (*Block, error
 	var b Block
 
 	err := s.db.QueryRowContext(ctx, `
-		SELECT block_height, block_hash, block_time, proposer_id
+		SELECT block_height, block_hash, block_time, proposer_id, messages, fee_frac
 		FROM blocks
 		WHERE block_height = $1
-	`, blockHeight).Scan(&b.Height, &b.Hash, &b.Time, &b.ProposerID)
+	`, blockHeight).Scan(&b.Height, &b.Hash, &b.Time, &b.ProposerID, pq.Array(&b.Messages), &b.FeeFrac)
 
 	if err == nil {
 		// normalize it here, as not always stored like this in the db
@@ -180,6 +180,8 @@ type Block struct {
 	ProposerID     int64
 	ParticipantIDs []int64
 	MissingIDs     []int64
+	Messages       []string
+	FeeFrac        uint64
 }
 
 var (

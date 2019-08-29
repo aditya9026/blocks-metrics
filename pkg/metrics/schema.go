@@ -42,7 +42,9 @@ CREATE TABLE IF NOT EXISTS blocks (
 	block_height BIGINT NOT NULL PRIMARY KEY,
 	block_hash BYTEA NOT NULL,
 	block_time TIMESTAMPTZ NOT NULL,
-	proposer_id INT NOT NULL REFERENCES validators(id)
+	proposer_id INT NOT NULL REFERENCES validators(id),
+	messages TEXT[] NOT NULL,
+	fee_frac BIGINT NOT NULL
 );
 
 ---
