@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/iov-one/block-metrics/pkg/errors"
+	"github.com/iov-one/weave/coin"
 )
 
 const syncRetryTimeout = 3 * time.Second
@@ -58,7 +59,6 @@ func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 
 		c, err := Commit(ctx, tmc, nextHeight)
 		if err != nil {
-
 			// BUG this can happen when the commit does not exist.
 			// There is no sane way to distinguish this case from
 			// any other tendermint API error.
@@ -92,6 +92,31 @@ func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 			return inserted, errors.Wrap(err, "validator ID")
 		}
 
+		tmblock, err := FetchBlock(ctx, tmc, nextHeight)
+		if err != nil {
+			return inserted, errors.Wrapf(err, "blocks for %d", syncedHeight+1)
+		}
+
+		var feeFrac uint64
+		messages := make([]string, 0) // Avoid nil array
+		for _, tx := range tmblock.Transactions {
+			if info := tx.GetFees(); info != nil {
+				if info.Fees.Ticker != "IOV" {
+					panic("fees in currency other than IOV are not supported")
+				}
+				feeFrac += uint64(info.Fees.GetWhole()*coin.FracUnit + info.Fees.GetFractional())
+			}
+
+			// The batch message is not split to expose each
+			// message separaterly. This would be a nice feature.
+			// Similar with getting details of the proposal.
+			msg, err := tx.GetMsg()
+			if err != nil {
+				return inserted, errors.Wrap(err, "cannot get transaction message")
+			}
+			messages = append(messages, msg.Path())
+		}
+
 		block := Block{
 			Height:         c.Height,
 			Hash:           c.Hash,
@@ -99,6 +124,8 @@ func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 			ProposerID:     propID,
 			ParticipantIDs: participantIDs,
 			MissingIDs:     missingIDs,
+			Messages:       messages,
+			FeeFrac:        feeFrac,
 		}
 		if err := st.InsertBlock(ctx, block); err != nil {
 			return inserted, errors.Wrapf(err, "insert block %d", c.Height)

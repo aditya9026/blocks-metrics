@@ -12,6 +12,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/iov-one/block-metrics/pkg/errors"
+	bnsd "github.com/iov-one/weave/cmd/bnsd/app"
 )
 
 type TendermintClient struct {
@@ -259,4 +260,43 @@ type TendermintCommit struct {
 	ProposerAddress      []byte
 	ValidatorsHash       []byte
 	ParticipantAddresses [][]byte
+}
+
+func FetchBlock(ctx context.Context, c *TendermintClient, height int64) (*TendermintBlock, error) {
+	var payload struct {
+		Block struct {
+			Header struct {
+				Height sint64    `json:"height"`
+				Time   time.Time `json:"time"`
+			} `json:"header"`
+			Data struct {
+				Txs [][]byte `json:"txs"`
+			} `json:"data"`
+		} `json:"block"`
+	}
+
+	if err := c.Do("block", &payload, height); err != nil {
+		return nil, errors.Wrap(err, "query tendermint")
+	}
+
+	block := TendermintBlock{
+		Height: payload.Block.Header.Height.Int64(),
+		Time:   payload.Block.Header.Time.UTC(),
+	}
+
+	for _, rawTx := range payload.Block.Data.Txs {
+		var tx bnsd.Tx
+		if err := tx.Unmarshal(rawTx); err != nil {
+			return nil, errors.Wrap(err, "cannot unmarshal transaction")
+		}
+		block.Transactions = append(block.Transactions, &tx)
+	}
+
+	return &block, nil
+}
+
+type TendermintBlock struct {
+	Height       int64
+	Time         time.Time
+	Transactions []*bnsd.Tx
 }
