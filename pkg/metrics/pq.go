@@ -82,6 +82,15 @@ func (s *Store) InsertBlock(ctx context.Context, b Block) error {
 		}
 	}
 
+	for _, transaction := range b.Transactions {
+		_, err := tx.ExecContext(ctx, `
+		INSERT INTO transactions(transaction_hash, block_id, message)
+		VALUES($1, $2, $3)`, transaction.Hash, b.Height, transaction.Message)
+		if err != nil {
+			return wrapPgErr(err, "insert transaction")
+		}
+	}
+
 	err = tx.Commit()
 	return wrapPgErr(err, "commit block tx")
 }
@@ -182,6 +191,12 @@ type Block struct {
 	MissingIDs     []int64
 	Messages       []string
 	FeeFrac        uint64
+	Transactions   []Transaction
+}
+
+type Transaction struct {
+	Hash    []byte
+	Message string
 }
 
 var (

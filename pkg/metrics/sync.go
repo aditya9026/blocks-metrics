@@ -3,10 +3,13 @@ package metrics
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/iov-one/block-metrics/pkg/errors"
+	"github.com/iov-one/weave"
 	"github.com/iov-one/weave/coin"
+	"github.com/iov-one/weave/x/batch"
 )
 
 const syncRetryTimeout = 3 * time.Second
@@ -99,7 +102,8 @@ func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 
 		var feeFrac uint64
 		messages := make([]string, 0) // Avoid nil array
-		for _, tx := range tmblock.Transactions {
+		transactions := make([]Transaction, 0, len(tmblock.Transactions))
+		for k, tx := range tmblock.Transactions {
 			if info := tx.GetFees(); info != nil {
 				if info.Fees.Ticker != "IOV" {
 					panic("fees in currency other than IOV are not supported")
@@ -115,6 +119,15 @@ func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 				return inserted, errors.Wrap(err, "cannot get transaction message")
 			}
 			messages = append(messages, msg.Path())
+			msgDetails, err := messageDetails(msg)
+			if err != nil {
+				return inserted, errors.Wrap(err, "cannot get transaction message detail")
+			}
+
+			transactions = append(transactions, Transaction{
+				Hash:    tmblock.TransactionHashes[k][:],
+				Message: msgDetails,
+			})
 		}
 
 		block := Block{
@@ -126,11 +139,54 @@ func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 			MissingIDs:     missingIDs,
 			Messages:       messages,
 			FeeFrac:        feeFrac,
+			Transactions: transactions,
 		}
 		if err := st.InsertBlock(ctx, block); err != nil {
 			return inserted, errors.Wrapf(err, "insert block %d", c.Height)
 		}
 		inserted++
+	}
+}
+
+type Message struct {
+	Path    string `json:"path"`
+	Details string `json:"details"`
+}
+
+func messageDetails(msg weave.Msg) (string, error) {
+	switch message := msg.(type) {
+	case batch.Msg:
+		list, err := message.MsgList()
+		if err != nil {
+			return "", err
+		}
+
+		messages := make([]Message, len(list))
+
+		for k, v := range list {
+			details, err := json.Marshal(v)
+			if err != nil {
+				return "", err
+			}
+			messages[k] = Message{
+				Path:    v.Path(),
+				Details: string(details),
+			}
+		}
+
+		res, err := json.Marshal(messages)
+		return string(res), err
+	default:
+		details, err := json.Marshal(message)
+		if err != nil {
+			return "", err
+		}
+
+		res, err := json.Marshal(
+			Message{
+				Path:    message.Path(),
+				Details: string(details)})
+		return string(res), err
 	}
 }
 

@@ -3,6 +3,7 @@ package metrics
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -290,13 +291,15 @@ func FetchBlock(ctx context.Context, c *TendermintClient, height int64) (*Tender
 			return nil, errors.Wrap(err, "cannot unmarshal transaction")
 		}
 		block.Transactions = append(block.Transactions, &tx)
+		block.TransactionHashes = append(block.TransactionHashes, sha256.Sum256(rawTx))
 	}
 
 	return &block, nil
 }
 
 type TendermintBlock struct {
-	Height       int64
-	Time         time.Time
-	Transactions []*bnsd.Tx
+	Height            int64
+	Time              time.Time
+	Transactions      []*bnsd.Tx
+	TransactionHashes [][32]byte
 }

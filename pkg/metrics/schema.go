@@ -56,6 +56,18 @@ CREATE TABLE IF NOT EXISTS block_participations (
 	validator_id INT NOT NULL REFERENCES validators(id),
 	UNIQUE (block_id, validator_id)
 );
+
+---
+
+CREATE TABLE IF NOT EXISTS transactions (
+	id BIGSERIAL PRIMARY KEY,
+	transaction_hash BYTEA NOT NULL,
+	block_id BIGINT NOT NULL REFERENCES blocks(block_height),
+	message TEXT 
+);
+
+CREATE INDEX ON transactions (transaction_hash);
+---
 `
 
 type QueryError struct {
