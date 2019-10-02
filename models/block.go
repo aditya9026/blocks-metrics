@@ -3,7 +3,6 @@ package models
 import "github.com/lib/pq"
 
 type Block struct {
-	Id          uint64
 	BlockHeight uint64
 	BlockHash   []byte
 	ProposerID  uint64

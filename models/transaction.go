@@ -1,7 +1,6 @@
 package models
 
 type Transaction struct {
-	Id              uint64
 	TransactionHash []byte
 	Message         string
 }
