@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"strconv"
 
-	"github.com/iov-one/block-metrics/pkg/errors"
+	"github.com/aditya9026/blocks-metrics/pkg/errors"
 )
 
 // Tentermint is using hex encoded binary data. Provide a type that will do the

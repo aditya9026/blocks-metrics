@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/iov-one/block-metrics/pkg/errors"
+	"github.com/aditya9026/blocks-metrics/pkg/errors"
 	"github.com/iov-one/weave"
 	"github.com/iov-one/weave/coin"
 	"github.com/iov-one/weave/x/batch"
@@ -139,7 +139,7 @@ func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 			MissingIDs:     missingIDs,
 			Messages:       messages,
 			FeeFrac:        feeFrac,
-			Transactions: transactions,
+			Transactions:   transactions,
 		}
 		if err := st.InsertBlock(ctx, block); err != nil {
 			return inserted, errors.Wrapf(err, "insert block %d", c.Height)

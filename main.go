@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/gorilla/mux"
-	"github.com/iov-one/block-metrics/controllers"
+	"github.com/aditya9026/blocks-metrics/controllers"
 )
 
 func main() {

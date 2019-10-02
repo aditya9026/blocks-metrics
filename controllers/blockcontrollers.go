@@ -5,8 +5,8 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
-	"github.com/iov-one/block-metrics/models"
-	u "github.com/iov-one/block-metrics/utils"
+	"github.com/aditya9026/blocks-metrics/models"
+	u "github.com/aditya9026/blocks-metrics/utils"
 )
 
 var GetBlocksFor = func(w http.ResponseWriter, r *http.Request) {

@@ -11,8 +11,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/aditya9026/blocks-metrics/pkg/errors"
 	"github.com/gorilla/websocket"
-	"github.com/iov-one/block-metrics/pkg/errors"
 	bnsd "github.com/iov-one/weave/cmd/bnsd/app"
 )
 

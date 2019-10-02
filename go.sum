@@ -84,8 +84,11 @@ github.com/gorilla/mux v1.7.3/go.mod h1:1lud6UwP+6orDFRuTfBEV8e9/aOM/c4fVVCaMa2z
 github.com/gorilla/websocket v1.4.0 h1:WDFjx/TMzVgy9VdMMQi2K2Emtwi2QcUQsztZ/zLaH/Q=
 github.com/gorilla/websocket v1.4.0/go.mod h1:E7qHFY5m1UJ88s3WnNqhKjPHQ0heANvMoAMk2YaljkQ=
 github.com/hashicorp/golang-lru v0.5.0/go.mod h1:/m3WP610KZHVQ1SGc6re/UDhFvYD7pJ4Ao+sR/qLZy8=
+github.com/heroku/x v0.0.0-20171004170240-705849e307dd/go.mod h1:opmAyjmIGn9/Y+9Nia6eIaktIXIoMhhFXEFbHLMsX3Y=
 github.com/hpcloud/tail v1.0.0 h1:nfCOvKYfkgYP8hkirhJocXT2+zOD8yUNjXaWfTlyFKI=
 github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpOxQnU=
+github.com/iov-one/block-metrics v0.0.0-20190923092322-b1163c213924 h1:LpzsebHDhxW+eeUWvDMYT3VBqwCmscSj3Wjl6icJx/c=
+github.com/iov-one/block-metrics v0.0.0-20190923092322-b1163c213924/go.mod h1:3lBPMz0d/xJ7KVJ/KR1Svh1rIS7CDRBvP1i1gYXXvnc=
 github.com/iov-one/weave v0.21.0 h1:CJjxcDCFI9hJO8Pk9eyGYoqFYf4sYifa3IhJMPOtxZE=
 github.com/iov-one/weave v0.21.0/go.mod h1:zVUS8DL28dwHRPYNQDiIydJ8j0/uB5Sb1LOeAzNVLQ4=
 github.com/jessevdk/go-flags v0.0.0-20141203071132-1679536dcc89/go.mod h1:4FA24M0QyGHXBuZZK/XkWh8h0e1EYbRYJSGM75WSRxI=

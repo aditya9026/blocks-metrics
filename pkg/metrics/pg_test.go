@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/iov-one/block-metrics/pkg/errors"
+	"github.com/aditya9026/blocks-metrics/pkg/errors"
 	_ "github.com/lib/pq"
 )
 

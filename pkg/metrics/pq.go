@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/iov-one/block-metrics/pkg/errors"
+	"github.com/aditya9026/blocks-metrics/pkg/errors"
 	"github.com/lib/pq"
 )
 
