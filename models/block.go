@@ -6,13 +6,13 @@ import (
 
 type Block struct {
 	gorm.Model
-	Id             int64   `json:"id"`
-	Height         int64   `json:"height"`
-	Hash           []byte  `json:"hash"`
-	ProposerID     int64   `json:"proposer_id"`
-	ParticipantIDs []int64 `json:"participant_ids"`
-	Messages       []uint8 `json:"messages"`
-	FeeFrac        uint64  `json:"fee_frac"`
+	Id         int64  `json:"id"`
+	Height     int64  `json:"height"`
+	Hash       []byte `json:"hash"`
+	ProposerID int64  `json:"proposer_id"`
+	// ParticipantIDs []int64 `json:"participant_ids"`
+	Messages []uint8 `json:"messages"`
+	FeeFrac  uint64  `json:"fee_frac"`
 }
 
 func GetBlock(id string) *Block {
