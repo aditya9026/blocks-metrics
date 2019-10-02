@@ -1,22 +1,15 @@
 package models
 
-import (
-	"github.com/jinzhu/gorm"
-)
-
 type Transaction struct {
-	gorm.Model
-	Id      uint   `json:"id"`
-	Hash    []byte `json:"hash"`
-	Message string `json:"message"`
+	Hash    []byte
+	Message string
 }
 
-func GetTransaction(id uint) *Block {
-
-	block := &Block{}
-	err := GetDB().Table("transactions").Where("id = ?", id).First(block).Error
+func GetTransaction(id string) *Transaction {
+	transaction := &Transaction{}
+	err := GetDB().Table("transactions").Where("id = ?", id).First(transaction).Error
 	if err != nil {
 		return nil
 	}
-	return block
+	return transaction
 }

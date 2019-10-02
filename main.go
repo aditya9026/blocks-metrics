@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/gorilla/mux"
 	"github.com/aditya9026/blocks-metrics/controllers"
+	"github.com/gorilla/mux"
 )
 
 func main() {
@@ -14,6 +14,7 @@ func main() {
 	router := mux.NewRouter()
 
 	router.HandleFunc("/api/blocks/{id:[0-9]+}", controllers.GetBlocksFor).Methods("GET")
+	router.HandleFunc("/api/transactions/{id:[0-9]+}", controllers.GetTransactionsFor).Methods("GET")
 	// router.NotFoundHandler = app.NotFoundHandler
 
 	port := os.Getenv("PORT")

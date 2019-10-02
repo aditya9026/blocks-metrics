@@ -1,24 +1,20 @@
 package models
 
-import (
-	"github.com/jinzhu/gorm"
-)
-
 type Block struct {
-	gorm.Model
-	Id         int64  `json:"id"`
-	Height     int64  `json:"height"`
-	Hash       []byte `json:"hash"`
-	ProposerID int64  `json:"proposer_id"`
-	// ParticipantIDs []int64 `json:"participant_ids"`
-	Messages []uint8 `json:"messages"`
-	FeeFrac  uint64  `json:"fee_frac"`
+	Height     int64
+	Hash       []byte
+	ProposerID int64
+	// ParticipantIDs []int64
+	// MissingIDs   []int64
+	// Messages     []string
+	FeeFrac      uint64
+	Transactions []Transaction
 }
 
-func GetBlock(id string) *Block {
+func GetBlock(height string) *Block {
 
 	block := &Block{}
-	err := GetDB().Table("blocks").Where("id = ?", id).First(block).Error
+	err := GetDB().Table("blocks").Where("block_height = ?", height).First(block).Error
 	if err != nil {
 		return nil
 	}
