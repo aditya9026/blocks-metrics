@@ -1,14 +1,14 @@
 package models
 
 type Block struct {
-	Height     int64
-	Hash       []byte
-	ProposerID int64
-	// ParticipantIDs []int64
-	// MissingIDs   []int64
-	// Messages     []string
-	FeeFrac      uint64
-	Transactions []Transaction
+	Height         int64
+	Hash           []byte
+	ProposerID     int64
+	ParticipantIDs []int64
+	MissingIDs     []int64
+	Messages       []uint8
+	FeeFrac        uint64
+	Transactions   []Transaction
 }
 
 func GetBlock(height string) *Block {
