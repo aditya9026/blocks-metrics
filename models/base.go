@@ -18,23 +18,24 @@ func init() {
 		fmt.Print(e)
 	}
 
-	username := os.Getenv("db_user")
-	password := os.Getenv("db_pass")
-	dbName := os.Getenv("db_name")
-	dbHost := os.Getenv("db_host")
-	// database_url := os.Getenv("database_url")
+	// username := os.Getenv("db_user")
+	// password := os.Getenv("db_pass")
+	// dbName := os.Getenv("db_name")
+	// dbHost := os.Getenv("db_host")
+	databaseUrl := os.Getenv("database_url")
 
-	dbUri := fmt.Sprintf("host=%s user=%s dbname=%s sslmode=disable password=%s", dbHost, username, dbName, password)
-	fmt.Println(dbUri)
+	// dbUri := fmt.Sprintf("host=%s user=%s dbname=%s sslmode=disable password=%s", dbHost, username, dbName, password)
+	// fmt.Println(dbUri)
 
-	// conn, err := gorm.Open("postgres", database_url)
-	conn, err := gorm.Open("postgres", dbUri)
+	// conn, err := gorm.Open("postgres", dbUri)
+	conn, err := gorm.Open("postgres", databaseUrl)
+
 	if err != nil {
 		fmt.Print(err)
 	}
 
 	db = conn
-	db.Debug() //.AutoMigrate(&Block{}, &Transaction{})
+	db.Debug().AutoMigrate(&Block{}, &Transaction{})
 }
 
 func GetDB() *gorm.DB {

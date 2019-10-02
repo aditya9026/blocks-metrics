@@ -1,14 +1,17 @@
 package models
 
+import "github.com/lib/pq"
+
 type Block struct {
-	Height         int64
-	Hash           []byte
-	ProposerID     int64
-	ParticipantIDs []int64
-	MissingIDs     []int64
-	Messages       []uint8
-	FeeFrac        uint64
-	Transactions   []Transaction
+	Id          uint64
+	BlockHeight uint64
+	BlockHash   []byte
+	ProposerID  uint64
+	Messages    pq.StringArray `gorm:"type:varchar(64)[]"`
+	FeeFrac     uint64
+	// ParticipantIDs pq.StringArray `gorm:"type:varchar(64)[]"`
+	// MissingIDs     pq.StringArray `gorm:"type:varchar(64)[]"`
+	// Transactions   []Transaction
 }
 
 func GetBlock(height string) *Block {

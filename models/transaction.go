@@ -1,8 +1,9 @@
 package models
 
 type Transaction struct {
-	Hash    []byte
-	Message string
+	Id              uint64
+	TransactionHash []byte
+	Message         string
 }
 
 func GetTransaction(id string) *Transaction {
