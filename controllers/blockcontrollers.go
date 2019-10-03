@@ -10,8 +10,8 @@ import (
 )
 
 var GetBlocksFor = func(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("================")
 	id := mux.Vars(r)["id"]
+	fmt.Println("================ GetBlocksFor", id)
 	data := models.GetBlock(id)
 	resp := u.Message(true, "success")
 	resp["data"] = data
@@ -19,7 +19,7 @@ var GetBlocksFor = func(w http.ResponseWriter, r *http.Request) {
 }
 
 var GetTransactionsFor = func(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("================")
+	fmt.Println("================ GetTransactionsFor")
 	id := mux.Vars(r)["id"]
 	data := models.GetTransaction(id)
 	resp := u.Message(true, "success")

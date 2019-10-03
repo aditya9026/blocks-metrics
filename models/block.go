@@ -1,6 +1,8 @@
 package models
 
-import "github.com/lib/pq"
+import (
+	"github.com/lib/pq"
+)
 
 type Block struct {
 	BlockHeight uint64
@@ -13,12 +15,11 @@ type Block struct {
 	// Transactions   []Transaction
 }
 
-func GetBlock(height string) *Block {
-
-	block := &Block{}
-	err := GetDB().Table("blocks").Where("block_height = ?", height).First(block).Error
+func GetBlock(fee_frac string) []*Block {
+	blocks := make([]*Block, 0)
+	err := GetDB().Table("blocks").Limit(10).Where("fee_frac = ?", fee_frac).Find(&blocks).Error
 	if err != nil {
 		return nil
 	}
-	return block
+	return blocks
 }
