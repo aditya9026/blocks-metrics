@@ -9,6 +9,16 @@ import (
 	"github.com/gorilla/mux"
 )
 
+var LastRecords = func(w http.ResponseWriter, r *http.Request) {
+	blocks := models.GetBlocks()
+	transactions := models.GetTransactions()
+	resp := u.Message(true, "success")
+	resp["blocks_last"] = blocks
+	resp["transactions_last"] = transactions
+	fmt.Println("================ last records")
+	u.Respond(w, resp)
+}
+
 var GetBlockFor = func(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 	fmt.Println("================ GetBlockFor", id)
