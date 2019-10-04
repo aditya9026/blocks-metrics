@@ -9,20 +9,36 @@ import (
 	"github.com/gorilla/mux"
 )
 
-var GetBlocksFor = func(w http.ResponseWriter, r *http.Request) {
+var GetBlockFor = func(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
-	fmt.Println("================ GetBlocksFor", id)
+	fmt.Println("================ GetBlockFor", id)
 	data := models.GetBlock(id)
 	resp := u.Message(true, "success")
-	resp["data"] = data
+	resp["block"] = data
+	u.Respond(w, resp)
+}
+
+var GetBlocksFor = func(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("================ GetBlocksFor last 10")
+	data := models.GetBlocks()
+	resp := u.Message(true, "success")
+	resp["blocks"] = data
+	u.Respond(w, resp)
+}
+
+var GetTransactionFor = func(w http.ResponseWriter, r *http.Request) {
+	id := mux.Vars(r)["id"]
+	fmt.Println("================ GetTransactionFor", id)
+	data := models.GetTransaction(id)
+	resp := u.Message(true, "success")
+	resp["transaction"] = data
 	u.Respond(w, resp)
 }
 
 var GetTransactionsFor = func(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("================ GetTransactionsFor")
-	id := mux.Vars(r)["id"]
-	data := models.GetTransaction(id)
+	fmt.Println("================ GetTransactionsFor last 10")
+	data := models.GetTransactions()
 	resp := u.Message(true, "success")
-	resp["data"] = data
+	resp["transactions"] = data
 	u.Respond(w, resp)
 }

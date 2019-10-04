@@ -15,8 +15,12 @@ func main() {
 
 	router := mux.NewRouter()
 
-	router.HandleFunc("/api/blocks/{id:[0-9]+}", controllers.GetBlocksFor).Methods("GET")
-	router.HandleFunc("/api/transactions/{id:[0-9]+}", controllers.GetTransactionsFor).Methods("GET")
+	router.HandleFunc("/api/block/{id:[0-9]+}", controllers.GetBlockFor).Methods("GET")
+	router.HandleFunc("/api/transaction/{id:[0-9]+}", controllers.GetTransactionFor).Methods("GET")
+
+	router.HandleFunc("/api/blocks", controllers.GetBlocksFor).Methods("GET")
+	router.HandleFunc("/api/transactions", controllers.GetTransactionsFor).Methods("GET")
+
 	corsObj := handlers.AllowedOrigins([]string{"*"})
 	// router.NotFoundHandler = app.NotFoundHandler
 

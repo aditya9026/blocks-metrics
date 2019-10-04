@@ -13,3 +13,12 @@ func GetTransaction(id string) *Transaction {
 	}
 	return transaction
 }
+
+func GetTransactions() []*Transaction {
+	transaction := make([]*Transaction, 0)
+	err := GetDB().Table("transactions").Limit(10).Find(&transaction).Error
+	if err != nil {
+		return nil
+	}
+	return transaction
+}

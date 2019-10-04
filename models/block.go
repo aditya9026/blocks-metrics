@@ -15,9 +15,18 @@ type Block struct {
 	// Transactions   []Transaction
 }
 
-func GetBlock(fee_frac string) []*Block {
+func GetBlock(id string) *Block {
+	block := &Block{}
+	err := GetDB().Table("blocks").Where("block_height = ?", id).First(block).Error
+	if err != nil {
+		return nil
+	}
+	return block
+}
+
+func GetBlocks() []*Block {
 	blocks := make([]*Block, 0)
-	err := GetDB().Table("blocks").Limit(10).Where("fee_frac = ?", fee_frac).Find(&blocks).Error
+	err := GetDB().Table("blocks").Limit(10).Find(&blocks).Error
 	if err != nil {
 		return nil
 	}
