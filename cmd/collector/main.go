@@ -12,8 +12,8 @@ import (
 
 func main() {
 	conf := configuration{
-		PostgresURI:     env("POSTGRES_URI", "user=postgres dbname=postgres"),
-		TendermintWsURI: env("TENDERMINT_WS_URI", "wss://bns.lovenet.iov.one/websocket"),
+		PostgresURI:     os.Getenv("DATABASE_URL"),
+		TendermintWsURI: os.Getenv("TENDERMINT_WS_URI"),
 	}
 
 	if err := run(conf); err != nil {
