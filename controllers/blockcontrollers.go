@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/aditya9026/blocks-metrics/models"
-	u "github.com/aditya9026/blocks-metrics/utils"
+	"github.com/iov-one/blocks-metrics/models"
+	u "github.com/iov-one/blocks-metrics/utils"
 	"github.com/gorilla/mux"
 )
 

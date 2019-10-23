@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/aditya9026/blocks-metrics/pkg/errors"
+	"github.com/iov-one/blocks-metrics/pkg/errors"
 	"github.com/iov-one/weave"
 	"github.com/iov-one/weave/coin"
 	"github.com/iov-one/weave/x/batch"

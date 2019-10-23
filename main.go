@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/aditya9026/blocks-metrics/controllers"
+	"github.com/iov-one/blocks-metrics/controllers"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 )
