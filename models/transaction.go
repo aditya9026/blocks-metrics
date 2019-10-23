@@ -1,8 +1,12 @@
 package models
 
+import (
+	"github.com/jinzhu/gorm/dialects/postgres"
+)
+
 type Transaction struct {
 	TransactionHash []byte
-	Message         string
+	Message         postgres.Jsonb
 }
 
 func GetTransaction(id string) *Transaction {
