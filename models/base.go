@@ -36,6 +36,7 @@ func init() {
 
 	db = conn
 	// db.Debug().AutoMigrate(&Block{}, &Transaction{})
+	// not migration since schema is migrated from cmd/collecter
 }
 
 func GetDB() *gorm.DB {
