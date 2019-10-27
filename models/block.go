@@ -26,7 +26,7 @@ func GetBlock(id string) *Block {
 
 func GetBlocks() []*Block {
 	blocks := make([]*Block, 0)
-	err := GetDB().Table("blocks").Limit(10).Find(&blocks).Error
+	err := GetDB().Table("blocks").Order("block_height desc").Limit(10).Find(&blocks).Error
 	if err != nil {
 		return nil
 	}
