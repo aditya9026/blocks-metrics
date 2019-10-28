@@ -3,7 +3,7 @@ package app
 import (
 	"net/http"
 
-	u "github.com/aditya9026/blocks-metrics/utils"
+	u "github.com/iov-one/blocks-metrics/utils"
 )
 
 var NotFoundHandler = func(next http.Handler) http.Handler {

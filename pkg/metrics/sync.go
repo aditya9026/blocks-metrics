@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/aditya9026/blocks-metrics/pkg/errors"
+	"github.com/iov-one/blocks-metrics/pkg/errors"
 	"github.com/iov-one/weave"
 	"github.com/iov-one/weave/coin"
 	"github.com/iov-one/weave/x/batch"
@@ -149,8 +149,8 @@ func Sync(ctx context.Context, tmc *TendermintClient, st *Store) (uint, error) {
 }
 
 type Message struct {
-	Path    string `json:"path"`
-	Details string `json:"details"`
+	Path    string          `json:"path"`
+	Details json.RawMessage `json:"details"`
 }
 
 func messageDetails(msg weave.Msg) (string, error) {
@@ -170,7 +170,7 @@ func messageDetails(msg weave.Msg) (string, error) {
 			}
 			messages[k] = Message{
 				Path:    v.Path(),
-				Details: string(details),
+				Details: json.RawMessage(details),
 			}
 		}
 
@@ -185,7 +185,7 @@ func messageDetails(msg weave.Msg) (string, error) {
 		res, err := json.Marshal(
 			Message{
 				Path:    message.Path(),
-				Details: string(details)})
+				Details: json.RawMessage(details)})
 		return string(res), err
 	}
 }

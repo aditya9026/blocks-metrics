@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS transactions (
 	id BIGSERIAL PRIMARY KEY,
 	transaction_hash BYTEA NOT NULL,
 	block_id BIGINT NOT NULL REFERENCES blocks(block_height),
-	message TEXT 
+	message JSONB
 );
 
 CREATE INDEX ON transactions (transaction_hash);
