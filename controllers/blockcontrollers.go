@@ -20,7 +20,7 @@ var LastRecords = func(w http.ResponseWriter, r *http.Request) {
 }
 
 var GetBlockFor = func(w http.ResponseWriter, r *http.Request) {
-	id := mux.Vars(r)["id"]
+	id := mux.Vars(r)["hash"]
 	fmt.Println("================ GetBlockFor", id)
 	data := models.GetBlock(id)
 	resp := u.Message(true, "success")
@@ -37,7 +37,7 @@ var GetBlocksFor = func(w http.ResponseWriter, r *http.Request) {
 }
 
 var GetTransactionFor = func(w http.ResponseWriter, r *http.Request) {
-	id := mux.Vars(r)["id"]
+	id := mux.Vars(r)["hash"]
 	fmt.Println("================ GetTransactionFor", id)
 	data := models.GetTransaction(id)
 	resp := u.Message(true, "success")

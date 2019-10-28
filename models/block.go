@@ -1,6 +1,8 @@
 package models
 
 import (
+	"fmt"
+
 	"github.com/lib/pq"
 )
 
@@ -15,9 +17,10 @@ type Block struct {
 	// Transactions   []Transaction
 }
 
-func GetBlock(id string) *Block {
+func GetBlock(hash string) *Block {
 	block := &Block{}
-	err := GetDB().Table("blocks").Where("block_height = ?", id).First(block).Error
+	fmt.Println("================ hash", hash)
+	err := GetDB().Table("blocks").Where("block_hash=decode(?, 'hex')", hash).First(block).Error
 	if err != nil {
 		return nil
 	}

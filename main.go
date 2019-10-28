@@ -16,8 +16,8 @@ func main() {
 	router := mux.NewRouter()
 
 	router.HandleFunc("/api/last_records", controllers.LastRecords).Methods("GET")
-	router.HandleFunc("/api/block/{id:[0-9]+}", controllers.GetBlockFor).Methods("GET")
-	router.HandleFunc("/api/transaction/{id:[0-9]+}", controllers.GetTransactionFor).Methods("GET")
+	router.HandleFunc("/api/block/{hash:[0-9a-fA-F]+}", controllers.GetBlockFor).Methods("GET")
+	router.HandleFunc("/api/transaction/{hash:[0-9a-fA-F]+}", controllers.GetTransactionFor).Methods("GET")
 
 	router.HandleFunc("/api/blocks", controllers.GetBlocksFor).Methods("GET")
 	router.HandleFunc("/api/transactions", controllers.GetTransactionsFor).Methods("GET")

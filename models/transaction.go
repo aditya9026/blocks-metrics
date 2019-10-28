@@ -7,9 +7,9 @@ type Transaction struct {
 	Message         string
 }
 
-func GetTransaction(id string) *Transaction {
+func GetTransaction(hash string) *Transaction {
 	transaction := &Transaction{}
-	err := GetDB().Table("transactions").Where("id = ?", id).First(transaction).Error
+	err := GetDB().Table("transactions").Where("transaction_hash=decode(?, 'hex')", hash).First(transaction).Error
 	if err != nil {
 		return nil
 	}
