@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/gorilla/mux"
 	"github.com/iov-one/blocks-metrics/models"
 	u "github.com/iov-one/blocks-metrics/utils"
-	"github.com/gorilla/mux"
 )
 
 var LastRecords = func(w http.ResponseWriter, r *http.Request) {
@@ -15,7 +15,6 @@ var LastRecords = func(w http.ResponseWriter, r *http.Request) {
 	resp := u.Message(true, "success")
 	resp["blocks_last"] = blocks
 	resp["transactions_last"] = transactions
-	fmt.Println("================ last records")
 	u.Respond(w, resp)
 }
 
